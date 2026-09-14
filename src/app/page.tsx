@@ -14,12 +14,14 @@ export default function Home() {
 
         {/* 뱃지 태그 */}
         <span className="mt-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-          Student
+          Software Engineer
         </span>
 
         {/* 소개글 */}
         <p className="mt-4 text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-          안녕하세요! 바이브코딩을 배우고 있는 대학생입니다.
+          사용자 중심의 가치를 코드로 구현하는 개발자입니다.
+          <br />
+          새로운 기술을 탐구하고 문제를 해결하는 과정을 즐깁니다.
         </p>
       </div>
     </main>
