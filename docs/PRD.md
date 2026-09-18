@@ -13,6 +13,7 @@
 | 대상 사용자 | 개인 사용자, 크리에이터 |
 | 구현 형태 | Mock 데이터 + LocalStorage 기반 클라이언트 전용 데모 |
 | 상태 관리 | Zustand + `persist` 미들웨어 |
+| UI 기반 | shadcn/ui |
 | 디자인 기준 | 프로젝트 루트의 [`design.md`](../design.md) |
 
 ## 2. 제품 개요
@@ -213,9 +214,13 @@
 
 ### 7.1 초기 Mock 데이터
 
-- 첫 실행 시 Mock 프로필 1개를 제공한다.
+- 첫 실행 시 [`src/mocks/profile-links.json`](../src/mocks/profile-links.json)의 Mock 프로필 1개를 제공한다.
 - Mock 데이터에는 섹션 헤더 2개와 링크 버튼 4개를 포함한다.
-- Mock 데이터는 실제 서비스 데이터처럼 자연스러운 이름과 URL을 사용한다.
+- Mock 데이터는 향후 `GET /api/v1/profiles/:username`에서 반환할 수 있는 API 응답 형태로 작성한다.
+- 1단계에서는 실제 API를 호출하지 않고 JSON 파일을 정적으로 import한다.
+- 화면과 Zustand 스토어는 응답의 `data.profile`과 `data.blocks`를 사용한다.
+- `meta`는 API 버전과 리소스 정보를 표현하며 LocalStorage에는 저장하지 않는다.
+- Mock 데이터는 실제 서비스 데이터처럼 자연스러운 이름, 설명, 아이콘 키, URL을 사용한다.
 - LocalStorage에 유효한 저장 데이터가 있으면 Mock 데이터보다 저장 데이터를 우선한다.
 - 저장 데이터가 없을 때만 기본 데이터를 생성한다.
 - 매 렌더링이나 새로고침마다 Mock 데이터로 덮어쓰지 않는다.
@@ -271,14 +276,18 @@ type SectionBlock = {
   type: "section";
   title: string;
   visible: boolean;
+  sortOrder: number;
 };
 
 type LinkBlock = {
   id: string;
   type: "link";
   title: string;
+  description: string;
   url: string;
+  icon: "instagram" | "youtube" | "globe" | "github";
   visible: boolean;
+  sortOrder: number;
 };
 
 type ContentBlock = SectionBlock | LinkBlock;
@@ -292,21 +301,42 @@ type MyLinkStore = {
   theme: ThemePreference;
   updatedAt: string;
 };
+
+type ProfileLinksResponse = {
+  success: true;
+  data: {
+    profile: Profile & { id: string };
+    blocks: ContentBlock[];
+    updatedAt: string;
+  };
+  meta: {
+    apiVersion: "v1";
+    resource: string;
+    blockCount: number;
+  };
+};
 ```
 
 통계 필드와 방문 기록은 1단계 데이터 모델에 포함하지 않는다.
+
+`blocks`는 `sortOrder` 오름차순으로 표시한다. 배열 순서와 `sortOrder`가 다르면 `sortOrder`를 기준으로 하며, 값이 같으면 원래 배열 순서를 유지한다. 알 수 없는 블록 유형이나 아이콘 키가 들어와도 페이지가 중단되지 않도록 해당 블록을 건너뛰거나 기본 링크 아이콘으로 대체한다.
 
 ## 9. 기술 스택
 
 | 영역 | 기술 |
 | --- | --- |
 | 애플리케이션 | Next.js 16 App Router, React 19, TypeScript |
-| 스타일 | Tailwind CSS 4, 전역 디자인 토큰 |
+| UI 컴포넌트 | shadcn/ui (`base-nova`, Base UI 기반) |
+| 스타일 | Tailwind CSS 4, CSS 변수 기반 전역 디자인 토큰 |
+| 아이콘 | Lucide React |
+| Mock 데이터 | 정적 JSON, 향후 REST API 응답과 동일한 envelope 구조 |
 | 전역 상태 | Zustand |
 | 상태 영속화 | Zustand `persist` 미들웨어, LocalStorage |
 | 품질 검사 | ESLint, TypeScript, Next.js 프로덕션 빌드 |
 
-추가 UI·폼·통계 라이브러리는 도입하지 않는다.
+Tailwind CSS 4의 CSS 중심 설정을 사용하며 `tailwind.config.*` 파일을 만들지 않는다. shadcn/ui 설정은 루트의 `components.json`, 공통 클래스 결합 함수는 `src/lib/utils.ts`, 생성 컴포넌트는 `src/components/ui`에서 관리한다.
+
+shadcn/ui 외의 범용 UI·폼·통계 라이브러리는 도입하지 않는다. 필요한 컴포넌트는 구현 단계마다 shadcn CLI로 개별 추가하고, 사용하지 않는 컴포넌트를 미리 생성하지 않는다.
 
 ## 10. Zustand 및 LocalStorage 설계
 
@@ -327,6 +357,8 @@ type MyLinkStore = {
 - 스토어 버전은 `1`로 지정한다.
 - `profile`, `blocks`, `theme`만 저장한다.
 - 액션 함수와 `hasHydrated`는 저장 대상에서 제외한다.
+- 최초 저장 데이터가 없으면 `src/mocks/profile-links.json`의 `data`를 초기 상태로 사용한다.
+- JSON 응답의 `success`와 `meta`는 API 응답 계층에서만 사용하고 Zustand 영속 상태에는 포함하지 않는다.
 - 데이터 구조 변경에 대비해 `version`과 `migrate`를 사용할 수 있는 구조로 작성한다.
 - 컴포넌트가 LocalStorage를 직접 수정하지 않도록 저장 책임을 Zustand 스토어에 둔다.
 
@@ -340,11 +372,69 @@ type MyLinkStore = {
 
 ## 11. 디자인 요구사항
 
-프로필 페이지는 [`design.md`](../design.md)의 시각·행동 원칙을 기준으로 한다.
+프로필 페이지의 컴포넌트 구조와 접근성 기반은 shadcn/ui를 사용하고, 시각·행동 원칙은 [`design.md`](../design.md)를 기준으로 한다. 두 기준이 충돌하면 `design.md`의 제품 디자인 결정을 우선한다.
+
+shadcn/ui의 기본 테마를 완성된 마이링크 디자인으로 간주하지 않는다. shadcn/ui는 버튼, 아바타, 스켈레톤 같은 재사용 가능한 컴포넌트의 구조와 상태 처리를 제공하고, 색상·서체·크기·간격·곡률·반응형 배치는 `design.md`의 토큰과 원칙을 적용한다. `design.md` 원문은 수정하지 않고 디자인 기준 문서로 유지한다.
 
 실제 제품 화면에는 삼성·Galaxy·One UI 명칭, 로고, 상표, 저작권 문구, 출처 또는 디자인 시스템 안내를 표시하지 않는다. 코드의 사용자 노출 문자열과 클래스명에도 해당 명칭을 사용하지 않는다.
 
-### 11.1 화면 구성
+### 11.1 디자인 시스템 적용 구조
+
+| 계층 | 역할 | 적용 기준 |
+| --- | --- | --- |
+| 제품 디자인 | 마이링크의 시각 언어와 사용자 경험 | `design.md` |
+| UI 컴포넌트 | 접근성, 상태, 변형, 조합 가능한 컴포넌트 | shadcn/ui |
+| 스타일 구현 | 토큰 연결, 반응형, 유틸리티 클래스 | Tailwind CSS 4 |
+| 제품 조합 | 프로필 헤더, 섹션, 링크 목록 | 마이링크 전용 컴포넌트 |
+
+- `components.json`은 shadcn CLI 설정 파일로 유지한다.
+- shadcn 컴포넌트 코드는 `src/components/ui`에 두고 제품 전용 조합은 별도 컴포넌트 경로에 둔다.
+- shadcn 컴포넌트의 공개 API와 접근성 동작은 유지하면서 스타일 변형을 추가한다.
+- 페이지에서 shadcn 내부 프리미티브를 직접 반복 조합하지 않고 제품 의미를 가진 컴포넌트로 감싼다.
+- Tailwind v4의 `@theme inline`과 CSS 변수를 사용해 디자인 토큰을 연결한다.
+- 구형 `tailwind.config.*` 파일이나 Tailwind v3 방식의 테마 확장을 추가하지 않는다.
+
+#### 스타일 작성 규칙
+
+- 공개 프로필 페이지와 제품 컴포넌트의 레이아웃, 간격, 색상, 타이포그래피, 반응형 및 상태 스타일은 Tailwind CSS 유틸리티 클래스로 작성한다.
+- `*.module.css`, `*.module.scss` 등 CSS Module과 페이지 전용 전역 선택자는 사용하지 않는다.
+- `src/app/globals.css`는 Tailwind·shadcn 스타일 불러오기, 의미 기반 CSS 변수와 디자인 토큰 선언, 전역 reset/base, 모션 감소 설정에만 사용한다.
+- 조건부 클래스 결합에는 `cn()`을 사용하고, 반복되는 컴포넌트 변형은 shadcn/ui가 사용하는 `cva` 방식으로 관리한다.
+- shadcn/ui 컴포넌트를 확장하거나 마이링크 전용 컴포넌트를 만들 때도 동일한 Tailwind CSS 작성 규칙을 적용한다.
+
+### 11.2 디자인 토큰 매핑
+
+shadcn/ui가 사용하는 의미 기반 CSS 변수에 `design.md`의 역할 토큰을 연결한다.
+
+| shadcn 토큰 | `design.md` 기준 | 용도 |
+| --- | --- | --- |
+| `--background` | Light의 밝은 기본 표면, Dark의 `{colors.black-dark}` | 페이지 배경 |
+| `--foreground` | 배경과 충분한 대비를 갖는 본문색 | 기본 텍스트 |
+| `--primary` | `{colors.primary}` | 주요 링크·활성 상태 |
+| `--primary-foreground` | Primary 위 고대비 색 | 주요 액션의 내용 |
+| `--card` | 배경과 위계가 구분되는 단색 표면 | 링크 및 프로필 표면 |
+| `--muted` | 절제된 보조 표면 | 아이콘 배경과 보조 영역 |
+| `--muted-foreground` | 접근성 대비를 만족하는 보조 텍스트 | 사용자명과 링크 설명 |
+| `--border`, `--ring` | 구조 구분선과 포커스 강조색 | 테두리와 키보드 포커스 |
+| `--radius` | `{rounded.radius-button}`을 기본으로 용도별 12·20·26px 적용 | 버튼 및 표면 곡률 |
+
+토큰 값은 `design.md`를 복제해 별도 상수로 관리하지 않고 전역 CSS 변수에서 한 번만 정의한다. 라이트·다크 테마 모두 같은 의미 구조를 유지한다.
+
+### 11.3 shadcn/ui 컴포넌트 사용 계획
+
+1단계에서는 필요한 컴포넌트만 추가한다.
+
+| 화면 요소 | shadcn/ui 기반 | 제품 적용 |
+| --- | --- | --- |
+| 외부 링크 | `Button` 또는 링크 가능한 버튼 변형 | 전체 행 클릭, 제목·설명·외부 이동 아이콘 배치 |
+| 프로필 사진 | `Avatar` | 이미지 오류 시 이름 기반 대체 표시 |
+| 로딩 상태 | `Skeleton` | LocalStorage hydration 중 레이아웃 유지 |
+| 테마·공유 액션 | `Button`의 ghost/icon 변형 | 낮은 강조의 상단 앱바 액션 |
+| 보조 안내 | 필요한 경우 `Alert` | 저장소 오류 시에만 표시 |
+
+대시보드와 통계용 컴포넌트는 현재 단계에서 추가하지 않는다.
+
+### 11.4 화면 구성
 
 - 상단 뷰잉 영역에 프로필 사진, 이름, 소개를 배치한다.
 - 링크가 있는 인터랙션 영역은 그 아래에 배치한다.
@@ -352,7 +442,7 @@ type MyLinkStore = {
 - 별도 내비게이션, 대시보드 진입 버튼, 통계 요약 카드를 배치하지 않는다.
 - 한 화면에서 과도한 장식과 여러 버튼 스타일을 혼용하지 않는다.
 
-### 11.2 색상과 형태
+### 11.5 색상과 형태
 
 - 역할 기반 색상 토큰을 사용한다.
 - 주요 인터랙션은 디자인 가이드의 Primary 계열을 사용한다.
@@ -360,14 +450,14 @@ type MyLinkStore = {
 - 인접 터치 대상 사이 간격은 최소 8px을 유지한다.
 - dim과 shadow를 같은 요소에 동시에 적용하지 않는다.
 
-### 11.3 반응형
+### 11.6 반응형
 
 - Compact, 600px 미만: 한 열 레이아웃과 최소 24px 좌우 여백을 기본으로 한다.
 - Medium, 600~839px: 프로필 콘텐츠의 읽기 폭을 유지하며 여백을 확장한다.
 - Expanded, 840px 이상: 모바일 카드를 과도하게 늘리지 않고 적절한 최대 너비로 중앙 정렬한다.
 - 최소 360px 화면에서 가로 스크롤이 발생하지 않아야 한다.
 
-### 11.4 테마
+### 11.7 테마
 
 - 라이트·다크 테마를 모두 지원한다.
 - 기본값은 시스템 설정을 따른다.
@@ -412,9 +502,11 @@ type MyLinkStore = {
 
 - [ ] `/jongcheon`에 등록 완료 상태의 공개 프로필 페이지를 제공한다.
 - [ ] 최초 방문 시 Mock 프로필, 섹션 2개, 링크 4개가 표시된다.
+- [ ] 최초 데이터는 `src/mocks/profile-links.json`에서 읽고 `sortOrder` 순서로 표시된다.
 - [ ] 최초 Mock 데이터가 `mylink:profile:jongcheon:v1`에 저장된다.
 - [ ] 새로고침 후 LocalStorage 데이터가 정상 복원된다.
 - [ ] 프로필 사진, 이름, 소개가 반응형으로 표시된다.
+- [ ] 공개 프로필 화면은 CSS Module 없이 Tailwind CSS 유틸리티 클래스로 스타일링된다.
 - [ ] 섹션과 링크가 저장 순서대로 표시된다.
 - [ ] 비공개 또는 유효하지 않은 링크가 표시되지 않는다.
 - [ ] 외부 링크가 안전하게 새 탭에서 열린다.

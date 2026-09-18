@@ -1,0 +1,74 @@
+{
+  "success": true,
+  "data": {
+    "profile": {
+      "id": "profile_jongcheon",
+      "username": "jongcheon",
+      "displayName": "백종천",
+      "bio": "사용자에게 오래 남는 경험을 만드는 풀스택 개발자입니다.",
+      "avatarUrl": "/images/avatar.svg"
+    },
+    "blocks": [
+      {
+        "id": "section_social",
+        "type": "section",
+        "title": "소셜 채널",
+        "visible": true,
+        "sortOrder": 0
+      },
+      {
+        "id": "link_instagram",
+        "type": "link",
+        "title": "Instagram",
+        "description": "일상과 작업 과정을 공유합니다.",
+        "url": "https://www.instagram.com/",
+        "icon": "instagram",
+        "visible": true,
+        "sortOrder": 1
+      },
+      {
+        "id": "link_youtube",
+        "type": "link",
+        "title": "YouTube",
+        "description": "개발 이야기와 튜토리얼을 만날 수 있습니다.",
+        "url": "https://www.youtube.com/",
+        "icon": "youtube",
+        "visible": true,
+        "sortOrder": 2
+      },
+      {
+        "id": "section_work",
+        "type": "section",
+        "title": "작업과 기록",
+        "visible": true,
+        "sortOrder": 3
+      },
+      {
+        "id": "link_portfolio",
+        "type": "link",
+        "title": "포트폴리오",
+        "description": "직접 만든 제품과 프로젝트를 소개합니다.",
+        "url": "https://example.com/portfolio",
+        "icon": "globe",
+        "visible": true,
+        "sortOrder": 4
+      },
+      {
+        "id": "link_github",
+        "type": "link",
+        "title": "GitHub",
+        "description": "코드와 오픈소스 활동을 확인할 수 있습니다.",
+        "url": "https://github.com/",
+        "icon": "github",
+        "visible": true,
+        "sortOrder": 5
+      }
+    ],
+    "updatedAt": "2026-09-18T00:00:00.000Z"
+  },
+  "meta": {
+    "apiVersion": "v1",
+    "resource": "/api/v1/profiles/jongcheon",
+    "blockCount": 6
+  }
+}
