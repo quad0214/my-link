@@ -1,67 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" width="100%" height="100%">
-  <defs>
-    <linearGradient id="cmBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b132b" />
-      <stop offset="100%" stop-color="#1c2541" />
-    </linearGradient>
-    <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#10b981" stop-opacity="0.4" />
-      <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-    </linearGradient>
-    <filter id="mShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-opacity="0.35" />
-    </filter>
-  </defs>
+  <!-- Canvas Background: Pastel Soft Orange / Peach -->
+  <rect width="100%" height="100%" fill="#FED7AA" />
 
-  <rect width="100%" height="100%" fill="url(#cmBg)" rx="16" />
+  <!-- Outer Border -->
+  <rect x="0" y="0" width="600" height="340" fill="none" stroke="#000000" stroke-width="8" />
 
-  <!-- Dashboard Window Mockup -->
-  <g filter="url(#mShadow)" transform="translate(40, 30)">
-    <rect width="520" height="280" rx="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" />
+  <!-- Retro Window Container -->
+  <!-- Shadow -->
+  <rect x="58" y="38" width="490" height="265" rx="14" fill="#000000" />
+  <!-- Body -->
+  <rect x="50" y="30" width="490" height="265" rx="14" fill="#FFFFFF" stroke="#000000" stroke-width="5" />
+  
+  <!-- Window Header with Hazard Diagonal Stripes -->
+  <rect x="50" y="30" width="490" height="40" rx="14" fill="#000000" />
+  <rect x="50" y="56" width="490" height="14" fill="#000000" />
+  
+  <rect x="65" y="42" width="16" height="16" fill="#EF4444" stroke="#FFFFFF" stroke-width="2" />
+  <rect x="87" y="42" width="16" height="16" fill="#FACC15" stroke="#FFFFFF" stroke-width="2" />
+  <rect x="109" y="42" width="16" height="16" fill="#22C55E" stroke="#FFFFFF" stroke-width="2" />
+  <text x="300" y="55" font-family="monospace" font-weight="900" font-size="13" fill="#FFE600" text-anchor="middle">METRICS_MONITOR_SYS.LOG</text>
+
+  <!-- Top 3 Chunky Metric Badges -->
+  <g transform="translate(70, 85)">
+    <!-- Metric 1 -->
+    <rect x="3" y="3" width="135" height="52" rx="6" fill="#000000" />
+    <rect x="0" y="0" width="135" height="52" rx="6" fill="#FFE600" stroke="#000000" stroke-width="3" />
+    <text x="12" y="20" font-family="monospace" font-weight="900" font-size="10" fill="#000000">RPS TRAFFIC</text>
+    <text x="12" y="42" font-family="sans-serif" font-weight="900" font-size="16" fill="#000000">14.2k/s</text>
+
+    <!-- Metric 2 -->
+    <rect x="158" y="3" width="135" height="52" rx="6" fill="#000000" />
+    <rect x="155" y="0" width="135" height="52" rx="6" fill="#4ADE80" stroke="#000000" stroke-width="3" />
+    <text x="167" y="20" font-family="monospace" font-weight="900" font-size="10" fill="#000000">LATENCY</text>
+    <text x="167" y="42" font-family="sans-serif" font-weight="900" font-size="16" fill="#000000">12.4ms</text>
+
+    <!-- Metric 3 -->
+    <rect x="313" y="3" width="135" height="52" rx="6" fill="#000000" />
+    <rect x="310" y="0" width="135" height="52" rx="6" fill="#70D6FF" stroke="#000000" stroke-width="3" />
+    <text x="322" y="20" font-family="monospace" font-weight="900" font-size="10" fill="#000000">CLUSTER</text>
+    <text x="322" y="42" font-family="sans-serif" font-weight="900" font-size="16" fill="#000000">24 / 24 OK</text>
+  </g>
+
+  <!-- Chunky Bar Chart Area -->
+  <g transform="translate(70, 150)">
+    <rect x="3" y="3" width="450" height="125" rx="8" fill="#000000" />
+    <rect x="0" y="0" width="450" height="125" rx="8" fill="#F8FAFC" stroke="#000000" stroke-width="3" />
     
-    <!-- Window Header -->
-    <rect width="520" height="34" rx="14" fill="#1e293b" />
-    <circle cx="20" cy="17" r="4.5" fill="#ef4444" />
-    <circle cx="35" cy="17" r="4.5" fill="#eab308" />
-    <circle cx="50" cy="17" r="4.5" fill="#22c55e" />
-    <text x="75" y="21" fill="#94a3b8" font-size="11" font-family="monospace">cloudmetrics.internal/dashboard</text>
-    <rect x="440" y="8" width="65" height="18" rx="9" fill="#10b981" fill-opacity="0.15" />
-    <text x="452" y="20" fill="#34d399" font-size="9" font-weight="bold" font-family="sans-serif">● LIVE 99.9%</text>
+    <!-- Grid lines -->
+    <line x1="20" y1="30" x2="430" y2="30" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="4,4" />
+    <line x1="20" y1="65" x2="430" y2="65" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="4,4" />
+    <line x1="20" y1="100" x2="430" y2="100" stroke="#000000" stroke-width="3" />
 
-    <!-- Top mini stats row -->
-    <g transform="translate(20, 48)">
-      <rect width="145" height="52" rx="8" fill="#1e293b" />
-      <text x="12" y="20" fill="#94a3b8" font-size="9" font-family="sans-serif">RPS Throughput</text>
-      <text x="12" y="42" fill="#ffffff" font-size="16" font-weight="bold" font-family="sans-serif">14,280/s</text>
-      <path d="M100 35 L115 25 L130 30" stroke="#38bdf8" stroke-width="2" fill="none" />
-
-      <rect x="165" width="145" height="52" rx="8" fill="#1e293b" />
-      <text x="177" y="20" fill="#94a3b8" font-size="9" font-family="sans-serif">Avg Latency</text>
-      <text x="177" y="42" fill="#34d399" font-size="16" font-weight="bold" font-family="sans-serif">12.4 ms</text>
-
-      <rect x="330" width="150" height="52" rx="8" fill="#1e293b" />
-      <text x="342" y="20" fill="#94a3b8" font-size="9" font-family="sans-serif">Active Cluster Nodes</text>
-      <text x="342" y="42" fill="#c084fc" font-size="16" font-weight="bold" font-family="sans-serif">24 / 24</text>
-    </g>
-
-    <!-- Main Chart Area -->
-    <g transform="translate(20, 115)">
-      <rect width="480" height="145" rx="10" fill="#141d2e" stroke="#1e293b" stroke-width="1" />
-      <!-- Grid lines -->
-      <line x1="20" y1="35" x2="460" y2="35" stroke="#334155" stroke-dasharray="4,4" opacity="0.4" />
-      <line x1="20" y1="75" x2="460" y2="75" stroke="#334155" stroke-dasharray="4,4" opacity="0.4" />
-      <line x1="20" y1="115" x2="460" y2="115" stroke="#334155" stroke-dasharray="4,4" opacity="0.4" />
-
-      <!-- Area Chart -->
-      <path d="M 25 115 Q 80 80, 140 90 T 260 45 T 380 65 T 455 30 L 455 130 L 25 130 Z" fill="url(#chartGrad)" />
-      <path d="M 25 115 Q 80 80, 140 90 T 260 45 T 380 65 T 455 30" fill="none" stroke="#10b981" stroke-width="3" />
-
-      <!-- Active Point Dot -->
-      <circle cx="455" cy="30" r="5" fill="#10b981" />
-      <circle cx="455" cy="30" r="9" fill="#10b981" opacity="0.4" />
-
-      <!-- Secondary Chart Line -->
-      <path d="M 25 125 Q 90 110, 160 112 T 280 85 T 390 95 T 455 75" fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="3,3" opacity="0.8" />
-    </g>
+    <!-- Neobrutalist Chunky Bars -->
+    <!-- Bar 1 -->
+    <rect x="35" y="55" width="28" height="45" fill="#FFE600" stroke="#000000" stroke-width="3" />
+    <!-- Bar 2 -->
+    <rect x="80" y="35" width="28" height="65" fill="#FF70A6" stroke="#000000" stroke-width="3" />
+    <!-- Bar 3 -->
+    <rect x="125" y="45" width="28" height="55" fill="#70D6FF" stroke="#000000" stroke-width="3" />
+    <!-- Bar 4 -->
+    <rect x="170" y="20" width="28" height="80" fill="#4ADE80" stroke="#000000" stroke-width="3" />
+    <!-- Bar 5 -->
+    <rect x="215" y="30" width="28" height="70" fill="#FFE600" stroke="#000000" stroke-width="3" />
+    <!-- Bar 6 -->
+    <rect x="260" y="48" width="28" height="52" fill="#FF70A6" stroke="#000000" stroke-width="3" />
+    <!-- Bar 7 -->
+    <rect x="305" y="15" width="28" height="85" fill="#4ADE80" stroke="#000000" stroke-width="3" />
+    <!-- Bar 8 -->
+    <rect x="350" y="32" width="28" height="68" fill="#70D6FF" stroke="#000000" stroke-width="3" />
+    <!-- Bar 9 -->
+    <rect x="395" y="10" width="28" height="90" fill="#FFE600" stroke="#000000" stroke-width="3" />
   </g>
 </svg>
