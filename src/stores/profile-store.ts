@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import { fetchLinks, saveLink } from "@/lib/firebase-links";
+import { deleteLink, fetchLinks, saveLink, updateLink } from "@/lib/firebase-links";
 import mockResponse from "@/mocks/profile-links.json";
 import type {
   ContentBlock,
@@ -20,6 +20,9 @@ type ProfileState = {
   theme: ThemePreference;
   isLoadingLinks: boolean;
   linksError: string | null;
+  isMutatingLinks: boolean;
+  editLink: (id: string, link: Pick<LinkBlock, "title" | "description" | "url">) => Promise<void>;
+  removeLink: (id: string) => Promise<void>;
   loadLinks: () => Promise<void>;
   addLink: (link: Pick<LinkBlock, "title" | "description" | "url">) => Promise<void>;
   setTheme: (theme: ThemePreference) => void;
@@ -31,6 +34,7 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
   theme: "system",
   isLoadingLinks: true,
   linksError: null,
+  isMutatingLinks: false,
   loadLinks: async () => {
     set({ isLoadingLinks: true, linksError: null });
     try {
@@ -45,8 +49,33 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
       (highest, block) => Math.max(highest, block.sortOrder),
       -1,
     ) + 1;
-    await saveLink(link, sortOrder);
-    await get().loadLinks();
+    set({ isMutatingLinks: true });
+    try {
+      await saveLink(link, sortOrder);
+      await get().loadLinks();
+    } finally {
+      set({ isMutatingLinks: false });
+    }
+  },
+  editLink: async (id, link) => {
+    set({ isMutatingLinks: true });
+    try {
+      await updateLink(id, link);
+      set((state) => ({ blocks: state.blocks.map((block) => block.id === id ? { ...block, ...link } : block) }));
+      await get().loadLinks();
+    } finally {
+      set({ isMutatingLinks: false });
+    }
+  },
+  removeLink: async (id) => {
+    set({ isMutatingLinks: true });
+    try {
+      await deleteLink(id);
+      set((state) => ({ blocks: state.blocks.filter((block) => block.id !== id) }));
+      await get().loadLinks();
+    } finally {
+      set({ isMutatingLinks: false });
+    }
   },
   setTheme: (theme) => set({ theme }),
 }));

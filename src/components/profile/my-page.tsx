@@ -1,110 +1,34 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useState, type ComponentType } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Camera,
-  Code2,
-  ExternalLink,
-  Globe2,
-  Link as LinkIcon,
   LoaderCircle,
   Moon,
-  Play,
   Plus,
   Share2,
   Sun,
-  type LucideProps,
 } from "lucide-react";
 
+import { LinkCard } from "@/components/profile/link-card";
+import { LinkForm } from "@/components/profile/link-form";
+import { isSafeExternalUrl, type LinkFormValues } from "@/lib/link-validation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { useProfileStore } from "@/stores/profile-store";
-import type { LinkBlock, LinkIcon as LinkIconName, ThemePreference } from "@/types/profile";
-
-const linkIcons: Record<LinkIconName, ComponentType<LucideProps>> = {
-  instagram: Camera,
-  youtube: Play,
-  globe: Globe2,
-  github: Code2,
-};
+import type { ThemePreference } from "@/types/profile";
 
 function resolveTheme(theme: ThemePreference) {
   if (theme !== "system") return theme;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function isSafeExternalUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
-const linkFormSchema = z.object({
-  title: z
-    .string()
-    .refine((value) => value.trim().length > 0, "링크 제목을 입력해 주세요.")
-    .refine((value) => value.trim().length <= 50, "링크 제목은 50자 이하로 입력해 주세요."),
-  url: z
-    .string()
-    .refine((value) => value.trim().length > 0, "URL을 입력해 주세요.")
-    .refine((value) => value.trim().length === 0 || isSafeExternalUrl(value.trim()), "http:// 또는 https://로 시작하는 올바른 URL을 입력해 주세요."),
-  description: z
-    .string()
-    .refine((value) => value.trim().length <= 100, "설명은 100자 이하로 입력해 주세요."),
-});
-
-type LinkFormValues = z.infer<typeof linkFormSchema>;
-
-function ProfileLink({ block }: { block: LinkBlock }) {
-  const Icon = linkIcons[block.icon] ?? LinkIcon;
-
-  return (
-    <a
-      href={block.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${block.title}: ${block.description}`}
-      className={cn(
-        buttonVariants({ variant: "outline", size: "lg" }),
-        "group h-auto min-h-[76px] w-full justify-start gap-3 rounded-[20px] border-border/80 bg-card px-3 py-3 text-left shadow-none",
-        "hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card hover:shadow-[0_10px_30px_-18px_var(--primary)]",
-        "focus-visible:ring-3 focus-visible:ring-ring/40 active:translate-y-0",
-      )}
-    >
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
-        <Icon className="size-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium text-foreground">{block.title}</span>
-        <span className="mt-1 block truncate text-[13px] font-normal text-muted-foreground">
-          {block.description || block.url}
-        </span>
-      </span>
-      <ExternalLink
-        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-        aria-hidden="true"
-      />
-    </a>
-  );
 }
 
 export function MyPage() {
@@ -115,28 +39,11 @@ export function MyPage() {
   const setTheme = useProfileStore((state) => state.setTheme);
   const loadLinks = useProfileStore((state) => state.loadLinks);
   const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
+  const isMutatingLinks = useProfileStore((state) => state.isMutatingLinks);
   const linksError = useProfileStore((state) => state.linksError);
   const [isDark, setIsDark] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setError,
-    clearErrors,
-    formState: { errors, isSubmitting },
-  } = useForm<LinkFormValues>({
-    resolver: zodResolver(linkFormSchema),
-    mode: "onSubmit",
-    reValidateMode: "onSubmit",
-    defaultValues: {
-      title: "",
-      url: "",
-      description: "",
-    },
-  });
-
   useEffect(() => {
     void loadLinks();
   }, [loadLinks]);
@@ -188,28 +95,20 @@ export function MyPage() {
     window.setTimeout(() => setStatusMessage(""), 2500);
   }
 
+  function showStatus(message: string) {
+    setStatusMessage(message);
+    window.setTimeout(() => setStatusMessage(""), 2500);
+  }
+
   async function handleAddLink(values: LinkFormValues) {
-    const title = values.title.trim();
-    clearErrors("root");
-    try {
-      await addLink({
-        title,
-        url: values.url.trim(),
-        description: values.description.trim(),
-      });
-      reset();
-      setDialogOpen(false);
-      setStatusMessage(`${title} 링크를 추가했어요.`);
-      window.setTimeout(() => setStatusMessage(""), 2500);
-    } catch {
-      setError("root", { message: "링크를 저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요." });
-    }
+    await addLink(values);
+    setDialogOpen(false);
+    showStatus(values.title + " 링크를 추가했어요.");
   }
 
   function handleDialogOpenChange(open: boolean) {
-    if (isSubmitting) return;
+    if (isMutatingLinks) return;
     setDialogOpen(open);
-    if (!open) reset();
   }
 
   const initial = profile.displayName.trim().charAt(0) || "M";
@@ -261,7 +160,7 @@ export function MyPage() {
               <p className="mt-1 text-sm text-muted-foreground">추가한 링크를 저장하고 언제든 확인하세요.</p>
             </div>
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" disabled={isLoadingLinks || Boolean(linksError)} />}>
+              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" disabled={isMutatingLinks || isLoadingLinks || Boolean(linksError)} />}>
                 <Plus aria-hidden="true" />
                 링크 추가
               </DialogTrigger>
@@ -270,59 +169,7 @@ export function MyPage() {
                   <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
                   <DialogDescription>방문자에게 보여줄 외부 링크 정보를 입력해 주세요.</DialogDescription>
                 </DialogHeader>
-                <form className="space-y-5" onSubmit={handleSubmit(handleAddLink)} aria-busy={isSubmitting} noValidate>
-                  <fieldset disabled={isSubmitting} className="space-y-5">
-                    <div className="space-y-2">
-                      <Label htmlFor="link-title">제목</Label>
-                      <Input
-                        id="link-title"
-                        autoComplete="off"
-                        placeholder="예: 블로그"
-                        className="h-11 rounded-[14px] px-3"
-                        aria-invalid={Boolean(errors.title)}
-                        aria-describedby={errors.title ? "link-title-error" : undefined}
-                        {...register("title")}
-                      />
-                      {errors.title ? <p id="link-title-error" className="text-xs leading-5 text-destructive" role="alert">{errors.title.message}</p> : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="link-url">URL</Label>
-                      <Input
-                        id="link-url"
-                        type="url"
-                        inputMode="url"
-                        autoComplete="url"
-                        placeholder="https://example.com"
-                        className="h-11 rounded-[14px] px-3"
-                        aria-invalid={Boolean(errors.url)}
-                        aria-describedby={errors.url ? "link-url-error" : "link-url-hint"}
-                        {...register("url")}
-                      />
-                      <p id="link-url-hint" className="text-xs leading-5 text-muted-foreground">http:// 또는 https://로 시작하는 주소를 입력하세요.</p>
-                      {errors.url ? <p id="link-url-error" className="text-xs leading-5 text-destructive" role="alert">{errors.url.message}</p> : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="link-description">설명 <span className="font-normal text-muted-foreground">(선택)</span></Label>
-                      <Input
-                        id="link-description"
-                        autoComplete="off"
-                        placeholder="링크를 짧게 소개해 주세요."
-                        className="h-11 rounded-[14px] px-3"
-                        aria-invalid={Boolean(errors.description)}
-                        aria-describedby={errors.description ? "link-description-error" : undefined}
-                        {...register("description")}
-                      />
-                      {errors.description ? <p id="link-description-error" className="text-xs leading-5 text-destructive" role="alert">{errors.description.message}</p> : null}
-                    </div>
-                  </fieldset>
-                  {errors.root ? <p className="text-sm text-destructive" role="alert">{errors.root.message}</p> : null}
-                  <DialogFooter className="mx-0 mb-0 rounded-[18px] border-0 bg-muted/60 p-3">
-                    <Button type="submit" disabled={isSubmitting} className="h-10 rounded-[14px] px-5">
-                      {isSubmitting ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-                      <span role="status">{isSubmitting ? (isLoadingLinks ? "목록 갱신 중…" : "저장 중…") : "추가하기"}</span>
-                    </Button>
-                  </DialogFooter>
-                </form>
+                <LinkForm onSave={handleAddLink} submitLabel="추가하기" isRefreshing={isLoadingLinks} disabled={isMutatingLinks} />
               </DialogContent>
             </Dialog>
           </div>
@@ -359,7 +206,7 @@ export function MyPage() {
                   {block.title}
                 </h3>
               ) : (
-                <ProfileLink key={block.id} block={block} />
+                <LinkCard key={block.id} block={block} onSuccess={showStatus} />
               ),
             )}
 

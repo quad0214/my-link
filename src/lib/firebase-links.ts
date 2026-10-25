@@ -1,7 +1,8 @@
-import { addDoc, collection, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { z } from "zod";
 
 import { db } from "@/lib/firebase";
+import { linkFormSchema, type LinkFormValues } from "@/lib/link-validation";
 import type { LinkBlock } from "@/types/profile";
 
 const linksCollection = collection(db, "users", "anonymous", "links");
@@ -42,4 +43,13 @@ export async function saveLink(
   });
 
   await addDoc(linksCollection, { ...data, createdAt: serverTimestamp() });
+}
+
+export async function updateLink(id: string, values: LinkFormValues): Promise<void> {
+  const data = linkFormSchema.parse(values);
+  await updateDoc(doc(linksCollection, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteLink(id: string): Promise<void> {
+  await deleteDoc(doc(linksCollection, id));
 }

@@ -34,17 +34,24 @@ Profile details still come from the mock profile, while the link list comes only
 from Firestore (mock links are not seeded).
 
 Enable the default Cloud Firestore database in the Firebase console and configure
-Security Rules to permit the intended reads and creates at that path. This
+Security Rules to permit the intended reads, creates, updates, and deletes at that path. This
 repository does not deploy rules or change the project's access permissions.
 
 Each link stores `type`, `title`, `description`, `url`, `icon`, `visible`,
 `sortOrder`, and a server-generated `createdAt`. The document ID is used as the
 link ID. On page load, a one-time query reads `users/anonymous/links` ordered by
-`createdAt` descending (newest first). After a successful link save, the list is
+`createdAt` descending (newest first). After a successful link add, edit, or deletion, the list is
 fetched again. There is no realtime subscription. Documents must have a
 `createdAt` field to appear in this query. Failed writes keep the form open for
 retry; read failures show a retry button. If the save succeeds but reloading
 fails, only the read error is shown so retrying does not create duplicate links.
+
+Each card always shows edit and delete controls. Editing happens inline and uses
+the same form and validation as adding a link (required title up to 50 characters,
+HTTP(S) URL, optional description up to 100 characters). Updates retain the
+document ID and `createdAt`, and set a server-generated `updatedAt`. Deleting
+requires confirmation displaying the link name and an irreversible-action warning.
+Failed operations keep the editor or dialog open for retry.
 
 References: [Add Firestore data](https://firebase.google.com/docs/firestore/manage-data/add-data),
 [Order Firestore data](https://firebase.google.com/docs/firestore/query-data/order-limit-data).
@@ -81,6 +88,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Link management tests
+
+Run `npm test` to verify shared validation, document updates/deletes,
+refresh behavior, and failure recovery with a mocked Firestore transport.
+These automated tests do not modify the live Firebase project.
 
 ### Browser extension hydration conflicts
 
