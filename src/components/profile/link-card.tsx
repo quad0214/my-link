@@ -94,7 +94,7 @@ export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (m
       {isEditing ? (
         <div className="space-y-4 p-4">
           <h3 className="text-sm font-medium">링크 수정</h3>
-          <LinkForm initialValues={{ title: block.title, url: block.url, description: block.description }} onSave={save} onCancel={() => setIsEditing(false)} isRefreshing={isLoadingLinks} disabled={actionsDisabled} focusOnMount />
+          <LinkForm initialValues={{ title: block.title, url: block.url, description: block.description }} onSave={save} submitLabel="변경하기" onCancel={() => setIsEditing(false)} disabled={actionsDisabled} focusOnMount />
         </div>
       ) : <LinkPreview block={block} />}
       <div className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-2">
@@ -114,9 +114,9 @@ export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (m
             {deleteError ? <p className="text-sm text-destructive" role="alert">{deleteError}</p> : null}
             <DialogFooter className="mx-0 mb-0 flex-row justify-end rounded-[18px] border-0 bg-muted/60 p-3">
               <Button type="button" variant="outline" className="h-10 rounded-[14px] px-5" disabled={isDeleting} onClick={() => changeDeleteOpen(false)}>취소</Button>
-              <Button type="button" variant="destructive" className="h-10 rounded-[14px] px-5" disabled={isDeleting} onClick={() => void confirmDelete()}>
-                {isDeleting ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-                <span aria-live="polite">{isDeleting ? (isLoadingLinks ? "목록 갱신 중…" : "삭제 중…") : "삭제하기"}</span>
+              <Button type="button" variant="destructive" className="relative h-10 rounded-[14px] px-5" disabled={isDeleting} aria-busy={isDeleting} aria-label={isDeleting ? "삭제 처리 중" : "삭제하기"} onClick={() => void confirmDelete()}>
+                {isDeleting ? <LoaderCircle className="absolute size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+                <span className={isDeleting ? "invisible" : undefined}>삭제하기</span>
               </Button>
             </DialogFooter>
           </DialogContent>

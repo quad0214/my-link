@@ -61,8 +61,10 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
     set({ isMutatingLinks: true });
     try {
       await updateLink(id, link);
-      set((state) => ({ blocks: state.blocks.map((block) => block.id === id ? { ...block, ...link } : block) }));
       await get().loadLinks();
+      if (get().linksError) {
+        set((state) => ({ blocks: state.blocks.map((block) => block.id === id ? { ...block, ...link } : block) }));
+      }
     } finally {
       set({ isMutatingLinks: false });
     }
@@ -71,8 +73,10 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
     set({ isMutatingLinks: true });
     try {
       await deleteLink(id);
-      set((state) => ({ blocks: state.blocks.filter((block) => block.id !== id) }));
       await get().loadLinks();
+      if (get().linksError) {
+        set((state) => ({ blocks: state.blocks.filter((block) => block.id !== id) }));
+      }
     } finally {
       set({ isMutatingLinks: false });
     }

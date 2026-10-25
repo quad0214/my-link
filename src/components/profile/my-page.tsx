@@ -160,8 +160,8 @@ export function MyPage() {
               <p className="mt-1 text-sm text-muted-foreground">추가한 링크를 저장하고 언제든 확인하세요.</p>
             </div>
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" disabled={isMutatingLinks || isLoadingLinks || Boolean(linksError)} />}>
-                <Plus aria-hidden="true" />
+              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" disabled={isMutatingLinks || isLoadingLinks || Boolean(linksError)} aria-busy={isLoadingLinks || isMutatingLinks} />}>
+                {isLoadingLinks || isMutatingLinks ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Plus aria-hidden="true" />}
                 링크 추가
               </DialogTrigger>
               <DialogContent className="gap-5 rounded-[24px] p-5 sm:max-w-md">
@@ -169,17 +169,11 @@ export function MyPage() {
                   <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
                   <DialogDescription>방문자에게 보여줄 외부 링크 정보를 입력해 주세요.</DialogDescription>
                 </DialogHeader>
-                <LinkForm onSave={handleAddLink} submitLabel="추가하기" isRefreshing={isLoadingLinks} disabled={isMutatingLinks} />
+                <LinkForm onSave={handleAddLink} submitLabel="추가하기" disabled={isMutatingLinks} />
               </DialogContent>
             </Dialog>
           </div>
 
-          {isLoadingLinks ? (
-            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
-              <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              <span>{isInitialLoading ? "링크를 불러오는 중이에요." : "링크 목록을 갱신하고 있어요."}</span>
-            </div>
-          ) : null}
           <div className="space-y-3" aria-busy={isLoadingLinks}>
             {isInitialLoading ? (
               <div className="space-y-3" aria-hidden="true">

@@ -22,12 +22,11 @@ type LinkFormProps = {
   onSave: (values: LinkFormValues) => Promise<void>;
   onCancel?: () => void;
   submitLabel?: string;
-  isRefreshing?: boolean;
   focusOnMount?: boolean;
   disabled?: boolean;
 };
 
-export function LinkForm({ initialValues = emptyValues, onSave, onCancel, submitLabel = "저장하기", isRefreshing = false, focusOnMount = false, disabled = false }: LinkFormProps) {
+export function LinkForm({ initialValues = emptyValues, onSave, onCancel, submitLabel = "저장하기", focusOnMount = false, disabled = false }: LinkFormProps) {
   const id = useId();
   const { register, handleSubmit, setError, clearErrors, setFocus, formState: { errors, isSubmitting } } = useForm<LinkFormValues>({
     resolver: zodResolver(linkFormSchema),
@@ -79,9 +78,9 @@ export function LinkForm({ initialValues = emptyValues, onSave, onCancel, submit
       {errors.root ? <p className="text-sm text-destructive" role="alert">{errors.root.message}</p> : null}
       <div className="flex flex-wrap justify-end gap-2 rounded-[18px] bg-muted/60 p-3">
         {onCancel ? <Button type="button" variant="outline" disabled={isSubmitting || disabled} className="h-10 rounded-[14px] px-5" onClick={onCancel}>취소</Button> : null}
-        <Button type="submit" disabled={isSubmitting || disabled} className="h-10 rounded-[14px] px-5">
-          {isSubmitting ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-          <span aria-live="polite">{isSubmitting ? (isRefreshing ? "목록 갱신 중…" : "저장 중…") : submitLabel}</span>
+        <Button type="submit" disabled={isSubmitting || disabled} aria-busy={isSubmitting} aria-label={isSubmitting ? submitLabel + " 처리 중" : submitLabel} className="relative h-10 rounded-[14px] px-5">
+          {isSubmitting ? <LoaderCircle className="absolute size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+          <span className={isSubmitting ? "invisible" : undefined}>{submitLabel}</span>
         </Button>
       </div>
     </form>

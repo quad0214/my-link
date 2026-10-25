@@ -44,6 +44,8 @@ function fixture() {
     },
     getDocs: async () => {
       state.reads++;
+      state.readStarted?.();
+      if (state.readGate) await state.readGate;
       if (state.failRead) throw new Error("read-denied");
       return { docs: [...documents.entries()].sort((a, b) => b[1].createdAt - a[1].createdAt)
         .map(([id, data]) => ({ id, data: () => data })) };
@@ -153,3 +155,33 @@ test("add still writes a server creation timestamp and refreshes newest first", 
   assert.equal(state.reads, 2); assert.equal(state.writes, 1);
   assert.equal(store.getState().isMutatingLinks, false);
 });
+
+for (const operation of ["add", "edit", "delete"]) {
+  test(operation + " keeps the current list and busy state until reloading completes", async () => {
+    const { state, store } = fixture();
+    await store.getState().loadLinks();
+    let releaseRead;
+    state.readGate = new Promise((resolve) => { releaseRead = resolve; });
+    const readStarted = new Promise((resolve) => { state.readStarted = resolve; });
+    const operationPromise = operation === "add"
+      ? store.getState().addLink({ ...values, title: "추가" })
+      : operation === "edit"
+        ? store.getState().editLink("existing", { ...values, title: "변경" })
+        : store.getState().removeLink("existing");
+    await readStarted;
+    assert.equal(store.getState().isMutatingLinks, true);
+    assert.equal(store.getState().isLoadingLinks, true);
+    assert.equal(store.getState().blocks.length, 1);
+    assert.equal(store.getState().blocks[0].title, values.title);
+    let completed = false;
+    operationPromise.then(() => { completed = true; });
+    await Promise.resolve();
+    assert.equal(completed, false);
+    releaseRead();
+    await operationPromise;
+    assert.equal(store.getState().isMutatingLinks, false);
+    assert.equal(store.getState().isLoadingLinks, false);
+    if (operation === "delete") assert.equal(store.getState().blocks.length, 0);
+    else assert.equal(store.getState().blocks[0].title, operation === "add" ? "추가" : "변경");
+  });
+}
