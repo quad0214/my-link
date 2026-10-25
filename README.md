@@ -2,6 +2,30 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Firebase
+
+Install dependencies with `npm install`, copy `.env.example` to `.env.local`, and
+fill in the Firebase web app configuration. `.env.local` is ignored by Git.
+The local setup already contains the configuration for `mylink-1e58b`.
+
+`src/lib/firebase.ts` exports the shared Firebase `app` and
+`getFirebaseAnalytics()`. The root layout initializes Analytics after mounting in
+a supported browser; it is skipped during server rendering and when
+`NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` is empty.
+
+```ts
+import { app, getFirebaseAnalytics } from "@/lib/firebase";
+```
+
+Set the same environment variables in your deployment environment **before
+building**, and restart the development server after changing `.env.local`.
+`NEXT_PUBLIC_*` values are included in the browser bundle: Firebase web
+configuration is public client configuration, not a server secret. Access to
+Firebase data must be controlled using Firebase Security Rules.
+
+References: [Firebase web setup](https://firebase.google.com/docs/web/setup),
+[Analytics browser support](https://firebase.google.com/docs/reference/js/analytics#issupported).
+
 First, run the development server:
 
 ```bash
