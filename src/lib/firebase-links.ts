@@ -12,7 +12,7 @@ function userLinks(uid: string) {
   return collection(db, "users", uid, "links");
 }
 
-const linkSchema = z.object({
+export const linkSchema = z.object({
   type: z.literal("link"),
   title: z.string().trim().min(1).max(50),
   description: z.string().max(100),

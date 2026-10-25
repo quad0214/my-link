@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
+import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
@@ -22,9 +23,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        {children}
-        <FirebaseAnalytics />
-        <Toaster />
+        <QueryProvider>
+          {children}
+          <FirebaseAnalytics />
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   );

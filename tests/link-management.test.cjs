@@ -19,6 +19,7 @@ function loadModule(relativePath, imports = {}) {
 }
 
 const validation = loadModule("src/lib/link-validation.ts");
+const profileValidation = loadModule("src/lib/profile-validation.ts");
 const values = { title: "기존 링크", url: "https://example.com", description: "설명" };
 
 function fixture() {
@@ -81,19 +82,7 @@ function fixture() {
     "@/lib/firebase": { db: {}, auth },
     "@/lib/link-validation": validation,
   });
-  const { useProfileStore: store } = loadModule("src/stores/profile-store.ts", {
-    "@/lib/firebase-links": service,
-    "@/lib/firebase-auth": { loginWithGoogle: async () => {}, logout: async () => {}, authErrorMessage: () => "오류" },
-    "@/lib/firebase-profile": {
-      googleProfile: (user) => ({ id: user.uid, displayName: user.displayName || "사용자", username: "", bio: "", avatarUrl: null }),
-      fetchUserProfile: async (user) => {
-        if (state.profileGate) await state.profileGate;
-        return { id: user.uid, displayName: user.displayName || "사용자", username: "", bio: "", avatarUrl: null };
-      },
-    },
-  });
-  store.setState({ user: auth.currentUser, profile: { id: "test-user", displayName: "테스트", username: "", bio: "", avatarUrl: null }, sessionId: 1, isAuthLoading: false });
-  return { state, documents, service, store, auth };
+  return { state, documents, service, auth };
 }
 
 test("shared add/edit validation rejects invalid input and trims accepted values", () => {
@@ -107,147 +96,11 @@ test("shared add/edit validation rejects invalid input and trims accepted values
   assert.equal(validation.linkFormSchema.safeParse({ ...values, title: "a".repeat(50), description: "a".repeat(100) }).success, true);
 });
 
-test("edit updates the same document, preserves creation time and other fields, then reloads", async () => {
-  const { state, documents, store } = fixture();
-  await store.getState().loadLinks();
-  await store.getState().editLink("existing", { ...values, title: "수정한 링크" });
-  const saved = documents.get("existing");
-  assert.equal(state.lastPath, "users/test-user/links/existing");
-  assert.equal(documents.size, 1);
-  assert.equal(saved.createdAt, 100); assert.equal(saved.updatedAt, 200);
-  assert.equal(saved.icon, "github"); assert.equal(saved.sortOrder, 7);
-  assert.equal(store.getState().blocks[0].title, "수정한 링크");
-  assert.equal(state.reads, 2); assert.equal(store.getState().isMutatingLinks, false);
-});
-
-test("delete removes only its target and reloads without a realtime subscription", async () => {
-  const { state, documents, store } = fixture();
-  await store.getState().loadLinks();
-  await store.getState().removeLink("existing");
-  assert.equal(state.lastPath, "users/test-user/links/existing");
-  assert.equal(documents.size, 0); assert.equal(store.getState().blocks.length, 0);
-  assert.equal(state.reads, 2); assert.equal(state.writes, 1);
-  assert.equal(store.getState().isMutatingLinks, false);
-});
-
-test("failed edit/delete preserve the list and clear the busy state", async () => {
-  const { state, store } = fixture();
-  await store.getState().loadLinks();
-  state.failWrite = true;
-  await assert.rejects(store.getState().editLink("existing", { ...values, title: "실패" }), /write-denied/);
-  assert.equal(store.getState().blocks[0].title, values.title);
-  assert.equal(store.getState().isMutatingLinks, false);
-  await assert.rejects(store.getState().removeLink("existing"), /write-denied/);
-  assert.equal(store.getState().blocks.length, 1);
-  assert.equal(store.getState().isMutatingLinks, false); assert.equal(state.reads, 1);
-});
-
 test("invalid edit never writes, and editing a missing document does not recreate it", async () => {
   const { state, service } = fixture();
   await assert.rejects(service.updateLink("test-user", "existing", { ...values, title: "" }));
   assert.equal(state.writes, 0);
   await assert.rejects(service.updateLink("test-user", "missing", values), /not-found/);
-});
-
-test("successful deletion followed by read failure stays deleted and retry only reads", async () => {
-  const { state, store } = fixture();
-  await store.getState().loadLinks();
-  state.failRead = true;
-  await store.getState().removeLink("existing");
-  assert.equal(store.getState().blocks.length, 0);
-  assert.ok(store.getState().linksError);
-  assert.equal(store.getState().isLoadingLinks, false);
-  assert.equal(store.getState().isMutatingLinks, false);
-  state.failRead = false;
-  await store.getState().loadLinks();
-  assert.equal(store.getState().linksError, null); assert.equal(state.writes, 1);
-});
-
-test("add still writes a server creation timestamp and refreshes newest first", async () => {
-  const { state, store } = fixture();
-  await store.getState().loadLinks();
-  await store.getState().addLink({ ...values, title: "추가한 링크" });
-  assert.equal(store.getState().blocks.map((block) => block.id).join(","), "added,existing");
-  assert.equal(state.reads, 2); assert.equal(state.writes, 1);
-  assert.equal(store.getState().isMutatingLinks, false);
-});
-
-for (const operation of ["add", "edit", "delete"]) {
-  test(operation + " keeps the current list and busy state until reloading completes", async () => {
-    const { state, store } = fixture();
-    await store.getState().loadLinks();
-    let releaseRead;
-    state.readGate = new Promise((resolve) => { releaseRead = resolve; });
-    const readStarted = new Promise((resolve) => { state.readStarted = resolve; });
-    const operationPromise = operation === "add"
-      ? store.getState().addLink({ ...values, title: "추가" })
-      : operation === "edit"
-        ? store.getState().editLink("existing", { ...values, title: "변경" })
-        : store.getState().removeLink("existing");
-    await readStarted;
-    assert.equal(store.getState().isMutatingLinks, true);
-    assert.equal(store.getState().isLoadingLinks, true);
-    assert.equal(store.getState().blocks.length, 1);
-    assert.equal(store.getState().blocks[0].title, values.title);
-    let completed = false;
-    operationPromise.then(() => { completed = true; });
-    await Promise.resolve();
-    assert.equal(completed, false);
-    releaseRead();
-    await operationPromise;
-    assert.equal(store.getState().isMutatingLinks, false);
-    assert.equal(store.getState().isLoadingLinks, false);
-    if (operation === "delete") assert.equal(store.getState().blocks.length, 0);
-    else assert.equal(store.getState().blocks[0].title, operation === "add" ? "추가" : "변경");
-  });
-}
-
-
-test("signed-out users cannot fetch or mutate links", async () => {
-  const { state, store, service, auth } = fixture();
-  auth.currentUser = null;
-  await store.getState().setUser(null);
-  await store.getState().loadLinks();
-  await assert.rejects(store.getState().addLink(values), /로그인/);
-  await assert.rejects(store.getState().editLink("existing", values), /로그인/);
-  await assert.rejects(store.getState().removeLink("existing"), /로그인/);
-  await assert.rejects(service.fetchLinks("test-user"), /로그인/);
-  assert.equal(state.reads, 0); assert.equal(state.writes, 0);
-  assert.equal(store.getState().profile, null); assert.equal(store.getState().blocks.length, 0);
-});
-
-test("logging out discards an in-flight response and clears the profile", async () => {
-  const { state, store, auth } = fixture();
-  let release;
-  state.readGate = new Promise((resolve) => { release = resolve; });
-  const started = new Promise((resolve) => { state.readStarted = resolve; });
-  const pending = store.getState().loadLinks();
-  await started;
-  auth.currentUser = null;
-  await store.getState().setUser(null);
-  release(); await pending;
-  assert.equal(store.getState().blocks.length, 0);
-  assert.equal(store.getState().profile, null);
-  assert.equal(store.getState().isLoadingLinks, false);
-});
-
-test("account changes reject stale list responses, even across a logout/login", async () => {
-  const { state, store, auth, documents } = fixture();
-  let release;
-  state.readGate = new Promise((resolve) => { release = resolve; });
-  const started = new Promise((resolve) => { state.readStarted = resolve; });
-  const oldRequest = store.getState().loadLinks();
-  await started;
-  state.readGate = null;
-  documents.clear();
-  documents.set("other-link", { ...values, type: "link", icon: "globe", visible: true, sortOrder: 0, createdAt: 300 });
-  auth.currentUser = { ...auth.currentUser, uid: "other-user", displayName: "다른 사용자" };
-  await store.getState().setUser(auth.currentUser);
-  assert.equal(store.getState().blocks[0].id, "other-link");
-  release(); await oldRequest;
-  assert.equal(store.getState().user.uid, "other-user");
-  assert.equal(store.getState().profile.displayName, "다른 사용자");
-  assert.equal(store.getState().blocks.map((block) => block.id).join(","), "other-link");
 });
 
 test("the service refuses to target a different UID", async () => {
@@ -261,58 +114,85 @@ test("the service refuses to target a different UID", async () => {
 function profileFixture(existing = null) {
   const user = { uid: "profile-user", displayName: "Google 이름", email: "owner@example.com", photoURL: "https://example.com/photo.png" };
   const auth = { currentUser: user };
-  const state = { data: existing, writes: 0, fail: false };
+  const state = { data: existing, writes: 0, fail: false, handles: new Map(), publicProfiles: new Map() };
+  const read = (ref) => {
+    const data = ref.collection === "users" ? state.data : state[ref.collection].get(ref.id);
+    return { exists: () => data != null, data: () => data };
+  };
   const profileModule = loadModule("src/lib/firebase-profile.ts", {
-    "@/lib/firebase": { db: {}, auth },
+    "@/lib/firebase": { db: {}, auth }, "@/lib/profile-validation": profileValidation,
     "firebase/firestore": {
-      doc: (_db, collection, uid) => { assert.equal(collection, "users"); assert.equal(uid, user.uid); return uid; },
+      doc: (_db, collection, id) => ({ collection, id }),
       serverTimestamp: () => "SERVER_SIGNUP_TIME",
       runTransaction: async (_db, callback) => {
         if (state.fail) throw new Error("permission-denied");
-        return callback({
-          get: async () => ({ exists: () => state.data !== null, data: () => state.data }),
-          set: (_ref, data) => { state.writes++; state.data = data; },
+        const writes = [];
+        const result = await callback({
+          get: async (ref) => read(ref),
+          set: (ref, data) => writes.push(() => { if (ref.collection === "users") { state.writes++; state.data = data; } else state[ref.collection].set(ref.id, data); }),
+          update: (_ref, data) => writes.push(() => { state.writes++; state.data = { ...state.data, ...data }; }),
+          delete: (ref) => writes.push(() => state[ref.collection].delete(ref.id)),
         });
+        writes.forEach((write) => write()); return result;
       },
     },
   });
   return { user, auth, state, profileModule };
 }
 
-test("first login creates name from email, email, photo, and server signup date", async () => {
+test("login initializes person name and unique email-prefix handle without publishing email", async () => {
   const { user, state, profileModule } = profileFixture();
   const profile = await profileModule.fetchUserProfile(user);
-  assert.equal(profile.displayName, "owner");
-  assert.equal(state.data.displayName, "owner");
-  assert.equal(state.data.email, user.email); assert.equal(state.data.avatarUrl, user.photoURL);
-  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME"); assert.equal(state.writes, 1);
-  await profileModule.fetchUserProfile({ ...user, email: "changed@example.com", photoURL: null });
-  assert.equal(state.writes, 1); assert.equal(state.data.email, "owner@example.com");
+  assert.equal(profile.username, "owner"); assert.equal(profile.displayname, "owner");
+  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
+  assert.equal(state.handles.get("owner").uid, user.uid);
+  assert.equal(state.publicProfiles.get(user.uid).email, undefined);
+  const writes = state.writes;
+  await profileModule.fetchUserProfile(user);
+  assert.equal(state.writes, writes);
   assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
 });
 
-test("existing profile and signup date are never overwritten", async () => {
-  const existing = { displayName: "내 이름", email: "original@example.com", avatarUrl: null, createdAt: 123, bio: "소개", customField: "keep" };
-  const { user, state, profileModule } = profileFixture(existing);
+test("legacy profile migration preserves person name, private email, photo and signup date", async () => {
+  const { user, state, profileModule } = profileFixture({ displayName: "기존 사람 이름", email: "original@example.com", avatarUrl: null, createdAt: 123, bio: "소개" });
   const profile = await profileModule.fetchUserProfile(user);
-  assert.equal(state.writes, 0); assert.equal(state.data, existing);
-  assert.equal(profile.displayName, "내 이름"); assert.equal(profile.email, "original@example.com");
-  assert.equal(profile.avatarUrl, null); assert.equal(state.data.createdAt, 123);
+  assert.equal(profile.username, "기존 사람 이름"); assert.equal(profile.displayname, "owner");
+  assert.equal(state.data.createdAt, 123); assert.equal(state.data.email, "original@example.com");
+  assert.equal(state.data.avatarUrl, null);
 });
 
-test("existing incomplete profiles are preserved without backfilling signup date", async () => {
-  const { user, state, profileModule } = profileFixture({ bio: "소개" });
-  const profile = await profileModule.fetchUserProfile(user);
-  assert.equal(state.writes, 0); assert.equal(state.data.createdAt, undefined);
-  assert.equal(profile.displayName, "owner"); assert.equal(profile.bio, "소개");
+test("person names can duplicate; only handles are reserved and moved atomically", async () => {
+  const { user, state, profileModule } = profileFixture();
+  await profileModule.fetchUserProfile(user);
+  state.publicProfiles.set("other-user", { username: "홍길동", displayname: "another" });
+  await profileModule.updateUserProfile(user.uid, { username: "홍길동", displayname: "NEW-ID", bio: "새 소개" });
+  assert.equal(state.data.username, "홍길동"); assert.equal(state.data.displayname, "new-id");
+  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
+  assert.equal(state.handles.has("owner"), false); assert.equal(state.handles.get("new-id").uid, user.uid);
+  assert.equal(state.publicProfiles.get(user.uid).username, "홍길동");
 });
 
-test("profile creation errors propagate and unauthenticated users cannot create", async () => {
+test("a conflicting handle fails on confirmation with no partial profile writes", async () => {
+  const { user, state, profileModule } = profileFixture();
+  await profileModule.fetchUserProfile(user);
+  state.handles.set("taken", { uid: "other-user" });
+  const before = state.data;
+  await assert.rejects(profileModule.updateUserProfile(user.uid, { username: "이름", displayname: "taken", bio: "" }), /이미 사용 중/);
+  assert.equal(state.data, before); assert.equal(state.handles.get("owner").uid, user.uid);
+});
+
+test("profile validation rejects reserved and unsafe handles but permits duplicate human names", () => {
+  for (const displayname of ["mypage", "api", "u", "bad/route", "bad space", "@owner", ""]) {
+    assert.equal(profileValidation.profileFormSchema.safeParse({ username: "사람 이름", displayname, bio: "" }).success, false);
+  }
+  assert.equal(profileValidation.profileFormSchema.parse({ username: "사람 이름", displayname: "OWNER", bio: "" }).displayname, "owner");
+});
+
+test("profile writes require the matching signed-in account", async () => {
   const { user, auth, state, profileModule } = profileFixture();
-  state.fail = true;
-  await assert.rejects(profileModule.fetchUserProfile(user), /permission-denied/);
   auth.currentUser = null;
   await assert.rejects(profileModule.fetchUserProfile(user), /로그인/);
+  await assert.rejects(profileModule.updateUserProfile(user.uid, { username: "name", displayname: "owner", bio: "" }), /로그인/);
   assert.equal(state.writes, 0);
 });
 
@@ -336,33 +216,241 @@ test("Google auth uses onAuthStateChanged and returns observer cleanup", async (
 });
 
 
-test("a previous account's late profile cannot replace the current profile", async () => {
-  const { state, store, auth } = fixture();
-  let release;
-  state.profileGate = new Promise((resolve) => { release = resolve; });
-  const oldSession = store.getState().setUser(auth.currentUser);
-  state.profileGate = null;
-  auth.currentUser = { ...auth.currentUser, uid: "new-account", displayName: "새 계정" };
-  await store.getState().setUser(auth.currentUser);
-  release(); await oldSession;
-  assert.equal(store.getState().profile.id, "new-account");
-  assert.equal(store.getState().profile.displayName, "새 계정");
+const { QueryClient, QueryObserver, MutationObserver } = require("@tanstack/react-query");
+function queryFixture() {
+  const f = fixture();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+  let current = true;
+  let remoteProfile = { id: f.auth.currentUser.uid, username: "기존 이름", displayname: "owner", bio: "기존 소개", avatarUrl: null };
+  const queries = loadModule("src/lib/account-queries.ts", {
+    "@/lib/firebase-links": f.service,
+    "@/lib/firebase-profile": {
+      fetchUserProfile: async () => ({ ...remoteProfile }),
+      updateUserProfile: async (_uid, data) => {
+        f.state.profileWriteStarted?.();
+        if (f.state.profileWriteGate) await f.state.profileWriteGate;
+        if (f.state.failWrite) throw new Error("profile-write-denied");
+        remoteProfile = { ...remoteProfile, ...data };
+      },
+    },
+    "@/lib/profile-validation": profileValidation,
+  });
+  const session = { user: f.auth.currentUser, sessionId: 1 };
+  const isCurrent = () => current;
+  return { ...f, client, queries, session, isCurrent, expire: () => { current = false; } };
+}
+
+test("Query caches and deduplicates Firestore reads by account session", async () => {
+  const f = queryFixture();
+  const options = { ...f.queries.linksOptions(f.session), staleTime: Infinity };
+  const [first, second] = await Promise.all([f.client.fetchQuery(options), f.client.fetchQuery(options)]);
+  assert.equal(first, second); assert.equal(f.state.reads, 1);
+  await f.client.fetchQuery(options); assert.equal(f.state.reads, 1);
+  assert.notDeepEqual(f.queries.linksKey(f.session), f.queries.linksKey({ ...f.session, sessionId: 2 }));
+  f.client.clear();
 });
 
-test("a previous account's pending mutation cannot refresh or reset the new session", async () => {
-  const { state, store, auth } = fixture();
-  await store.getState().loadLinks();
+for (const operation of ["add", "edit", "delete"]) {
+  test("Query " + operation + " waits for list refetch before completing", async () => {
+    const f = queryFixture();
+    const options = f.queries.linksOptions(f.session);
+    await f.client.fetchQuery(options);
+    const observer = new QueryObserver(f.client, { ...options, staleTime: Infinity });
+    const unsubscribe = observer.subscribe(() => {});
+    let release;
+    f.state.readGate = new Promise((resolve) => { release = resolve; });
+    const started = new Promise((resolve) => { f.state.readStarted = resolve; });
+    const mutation = new MutationObserver(f.client, f.queries.linkWriteOptions(f.client, f.session, f.isCurrent, () => {}));
+    const input = operation === "add" ? { type: "add", values: { ...values, title: "새 링크" } }
+      : operation === "edit" ? { type: "edit", id: "existing", values: { ...values, title: "수정 링크" } }
+      : { type: "delete", id: "existing" };
+    const pending = mutation.mutate(input);
+    await started;
+    assert.equal(mutation.getCurrentResult().isPending, true);
+    assert.equal(f.client.getQueryData(options.queryKey)[0].title, values.title);
+    release(); await pending;
+    const data = f.client.getQueryData(options.queryKey);
+    assert.equal(f.state.reads, 2);
+    if (operation === "delete") assert.equal(data.length, 0);
+    else assert.equal(data[0].title, operation === "add" ? "새 링크" : "수정 링크");
+    unsubscribe(); f.client.clear();
+  });
+}
+
+test("profile mutation immediately updates cache and rolls back on failure", async () => {
+  const f = queryFixture();
+  const options = f.queries.profileOptions(f.session);
+  const previous = await f.client.fetchQuery(options);
   let release;
-  state.writeGate = new Promise((resolve) => { release = resolve; });
-  const started = new Promise((resolve) => { state.writeStarted = resolve; });
-  const pendingEdit = store.getState().editLink("existing", { ...values, title: "이전 계정 수정" });
+  f.state.profileWriteGate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { f.state.profileWriteStarted = resolve; });
+  f.state.failWrite = true;
+  const mutation = new MutationObserver(f.client, f.queries.profileWriteOptions(f.client, f.session, f.isCurrent));
+  const pending = mutation.mutate({ username: "낙관적 이름", displayname: "owner", bio: "낙관적 소개" });
+  const rejected = assert.rejects(pending, /profile-write-denied/);
   await started;
-  auth.currentUser = { ...auth.currentUser, uid: "new-account", displayName: "새 계정" };
-  await store.getState().setUser(auth.currentUser);
-  const readsBeforeOldWriteCompletes = state.reads;
-  store.setState({ isMutatingLinks: true });
-  release(); await pendingEdit;
-  assert.equal(state.reads, readsBeforeOldWriteCompletes);
-  assert.equal(store.getState().isMutatingLinks, true);
-  assert.equal(store.getState().profile.id, "new-account");
+  assert.equal(f.client.getQueryData(options.queryKey).username, "낙관적 이름");
+  assert.equal(f.client.getQueryData(options.queryKey).bio, "낙관적 소개");
+  assert.equal(mutation.getCurrentResult().isPending, true);
+  release(); await rejected;
+  assert.deepEqual(f.client.getQueryData(options.queryKey), previous);
+  f.client.clear();
+});
+
+test("successful optimistic profile updates are invalidated and retained", async () => {
+  const f = queryFixture();
+  const options = f.queries.profileOptions(f.session);
+  await f.client.fetchQuery(options);
+  const observer = new QueryObserver(f.client, { ...options, staleTime: Infinity });
+  const unsubscribe = observer.subscribe(() => {});
+  const mutation = new MutationObserver(f.client, f.queries.profileWriteOptions(f.client, f.session, f.isCurrent));
+  await mutation.mutate({ username: "저장된 이름", displayname: "owner", bio: "저장된 소개" });
+  assert.equal(f.client.getQueryData(options.queryKey).username, "저장된 이름");
+  assert.equal(f.client.getQueryState(options.queryKey).isInvalidated, false);
+  unsubscribe(); f.client.clear();
+});
+
+test("late optimistic mutation failures cannot restore a signed-out account cache", async () => {
+  const f = queryFixture();
+  const options = f.queries.profileOptions(f.session);
+  await f.client.fetchQuery(options);
+  let release;
+  f.state.profileWriteGate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { f.state.profileWriteStarted = resolve; });
+  f.state.failWrite = true;
+  const mutation = new MutationObserver(f.client, f.queries.profileWriteOptions(f.client, f.session, f.isCurrent));
+  const rejected = assert.rejects(mutation.mutate({ username: "old", displayname: "owner", bio: "old" }));
+  await started;
+  f.expire(); f.client.removeQueries({ queryKey: ["account"] });
+  release(); await rejected;
+  assert.equal(f.client.getQueryData(options.queryKey), undefined);
+  f.client.clear();
+});
+
+test("failed link writes do not alter cached list or trigger reload", async () => {
+  const f = queryFixture();
+  const options = f.queries.linksOptions(f.session);
+  const previous = await f.client.fetchQuery(options);
+  f.state.failWrite = true;
+  const mutation = new MutationObserver(f.client, f.queries.linkWriteOptions(f.client, f.session, f.isCurrent, () => {}));
+  await assert.rejects(mutation.mutate({ type: "delete", id: "existing" }), /write-denied/);
+  assert.equal(f.client.getQueryData(options.queryKey), previous); assert.equal(f.state.reads, 1);
+  f.client.clear();
+});
+
+
+test("logout cancels in-flight account reads and removes their cache", async () => {
+  const f = queryFixture();
+  const { useProfileStore: authStore } = loadModule("src/stores/profile-store.ts", {
+    "@/lib/query-client": { getQueryClient: () => f.client },
+    "@/lib/firebase-auth": { authErrorMessage: () => "error", loginWithGoogle: async () => {}, logout: async () => {} },
+  });
+  authStore.getState().setUser(f.session.user);
+  let release;
+  f.state.readGate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { f.state.readStarted = resolve; });
+  const pending = f.client.fetchQuery(f.queries.linksOptions(f.session));
+  const rejected = assert.rejects(pending);
+  await started;
+  authStore.getState().setUser(null);
+  await rejected;
+  release(); await Promise.resolve();
+  assert.equal(authStore.getState().user, null);
+  assert.equal(f.client.getQueryData(f.queries.linksKey(f.session)), undefined);
+  assert.equal(f.client.getQueryCache().findAll({ queryKey: ["account"] }).length, 0);
+  f.client.clear();
+});
+
+test("confirmed delete with failed refetch is not retried and removes the cached card", async () => {
+  const f = queryFixture();
+  const options = f.queries.linksOptions(f.session);
+  await f.client.fetchQuery(options);
+  const observer = new QueryObserver(f.client, { ...options, staleTime: Infinity });
+  const unsubscribe = observer.subscribe(() => {});
+  let warned = false;
+  f.state.failRead = true;
+  const mutation = new MutationObserver(f.client, f.queries.linkWriteOptions(f.client, f.session, f.isCurrent, () => { warned = true; }));
+  await mutation.mutate({ type: "delete", id: "existing" });
+  assert.equal(warned, true); assert.equal(f.state.writes, 1);
+  assert.equal(f.client.getQueryData(options.queryKey).length, 0);
+  unsubscribe(); f.client.clear();
+});
+
+test("expired sessions cannot start link or optimistic profile mutations", async () => {
+  const f = queryFixture();
+  f.expire();
+  const linkMutation = new MutationObserver(f.client, f.queries.linkWriteOptions(f.client, f.session, f.isCurrent, () => {}));
+  await assert.rejects(linkMutation.mutate({ type: "delete", id: "existing" }), /로그인/);
+  const profileMutation = new MutationObserver(f.client, f.queries.profileWriteOptions(f.client, f.session, f.isCurrent));
+  await assert.rejects(profileMutation.mutate({ username: "name", displayname: "owner", bio: "" }), /로그인/);
+  assert.equal(f.state.writes, 0); assert.equal(f.client.getQueryData(f.queries.profileKey(f.session)), undefined);
+  f.client.clear();
+});
+
+
+test("optimistic profile onMutate is synchronous and does not wait for network", async () => {
+  const f = queryFixture();
+  const key = f.queries.profileKey(f.session);
+  await f.client.fetchQuery(f.queries.profileOptions(f.session));
+  let networkStarted = false;
+  f.state.profileWriteStarted = () => { networkStarted = true; };
+  let editorClosed = false;
+  const options = f.queries.profileWriteOptions(f.client, f.session, f.isCurrent, () => {
+    assert.equal(f.client.getQueryData(key).bio, "즉시 상태 메시지");
+    assert.equal(networkStarted, false);
+    editorClosed = true;
+  });
+  const context = options.onMutate({ username: "즉시 이름", displayname: "owner", bio: "즉시 상태 메시지" });
+  assert.equal(editorClosed, true);
+  assert.equal(typeof context.then, "undefined");
+  assert.equal(networkStarted, false);
+  assert.equal(f.client.getQueryData(key).bio, "즉시 상태 메시지");
+  assert.equal(f.client.getQueryData(key).username, "즉시 이름");
+  options.onError(new Error("failed"), {}, context);
+  assert.equal(f.client.getQueryData(key).bio, "기존 소개");
+  f.client.clear();
+});
+
+function publicFixture() {
+  class Timestamp { constructor(value) { this.value = value; } toMillis() { return this.value; } }
+  const state = { lookup: { uid: "owner-id" }, profile: { uid: "owner-id", username: "홍길동", displayname: "owner", bio: "소개", avatarUrl: null, email: "private@example.com" }, reads: [], links: [] };
+  const { service } = fixture();
+  const api = loadModule("src/lib/firebase-public-profile.ts", {
+    "@/lib/firebase": { db: {} }, "@/lib/firebase-links": service, "@/lib/profile-validation": profileValidation,
+    "firebase/firestore": {
+      Timestamp,
+      doc: (_db, collection, id) => ({ collection, id }),
+      getDoc: async (ref) => { state.reads.push(ref); const data = ref.collection === "handles" ? state.lookup : state.profile; return { exists: () => data != null, data: () => data }; },
+      collection: (_db, ...segments) => { assert.equal(segments.join("/"), "users/owner-id/links"); return "links"; },
+      where: (field, operator, value) => { assert.equal(field, "visible"); assert.equal(operator, "=="); assert.equal(value, true); return "visible-only"; },
+      query: (_ref, filter) => { assert.equal(filter, "visible-only"); return "links-query"; },
+      getDocs: async () => ({ docs: state.links.map(({ id, ...data }) => ({ id, data: () => data })) }),
+    },
+  });
+  return { state, api, Timestamp };
+}
+
+test("public route resolves handle to UID, selects visible safe links, and omits email", async () => {
+  const { state, api, Timestamp } = publicFixture();
+  const link = { ...values, type: "link", icon: "globe", visible: true, sortOrder: 0 };
+  state.links = [
+    { ...link, id: "old", createdAt: new Timestamp(1) },
+    { ...link, id: "new", createdAt: new Timestamp(2) },
+    { ...link, id: "hidden", visible: false },
+    { ...link, id: "unsafe", url: "javascript:alert(1)" },
+  ];
+  const result = await api.fetchPublicProfile("owner");
+  assert.equal(result.profile.username, "홍길동"); assert.equal(result.profile.displayname, "owner");
+  assert.equal(result.profile.email, undefined);
+  assert.equal(result.links.map((link) => link.id).join(","), "new,old");
+  assert.equal(state.reads[0].collection, "handles"); assert.equal(state.reads[1].id, "owner-id");
+});
+
+test("missing, mismatched or invalid public displaynames produce not-found results", async () => {
+  const { state, api } = publicFixture();
+  assert.equal(await api.fetchPublicProfile("bad handle"), null); assert.equal(state.reads.length, 0);
+  state.lookup = null; assert.equal(await api.fetchPublicProfile("missing"), null);
+  state.lookup = { uid: "owner-id" }; state.profile = null; assert.equal(await api.fetchPublicProfile("owner"), null);
+  state.profile = { uid: "owner-id", username: "이름", displayname: "different", bio: "", avatarUrl: null };
+  assert.equal(await api.fetchPublicProfile("owner"), null);
 });

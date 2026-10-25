@@ -8,7 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { LinkFormValues } from "@/lib/link-validation";
-import { useProfileStore } from "@/stores/profile-store";
+import { useAccountBusy, useLinks, useLinkWrite } from "@/hooks/use-account-data";
 import type { LinkBlock, LinkIcon as LinkIconName } from "@/types/profile";
 
 const linkIcons: Record<LinkIconName, ComponentType<LucideProps>> = {
@@ -52,10 +52,9 @@ function LinkPreview({ block }: { block: LinkBlock }) {
 }
 
 export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (message: string) => void }) {
-  const editLink = useProfileStore((state) => state.editLink);
-  const removeLink = useProfileStore((state) => state.removeLink);
-  const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
-  const isMutatingLinks = useProfileStore((state) => state.isMutatingLinks);
+  const linkWrite = useLinkWrite();
+  const { isFetching: isLoadingLinks } = useLinks();
+  const isMutatingLinks = useAccountBusy("links");
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -63,7 +62,7 @@ export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (m
   const actionsDisabled = isMutatingLinks || isLoadingLinks;
 
   async function save(values: LinkFormValues) {
-    await editLink(block.id, values);
+    await linkWrite.mutateAsync({ type: "edit", id: block.id, values });
     setIsEditing(false);
     onSuccess(values.title + " 링크를 수정했어요.");
   }
@@ -79,7 +78,7 @@ export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (m
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await removeLink(block.id);
+      await linkWrite.mutateAsync({ type: "delete", id: block.id });
       setDeleteOpen(false);
       onSuccess(block.title + " 링크를 삭제했어요.");
     } catch {

@@ -3,7 +3,7 @@ export type ThemePreference = "light" | "dark" | "system";
 export type Profile = {
   id: string;
   username: string;
-  displayName: string;
+  displayname: string;
   bio: string;
   avatarUrl: string | null;
   email?: string | null;

@@ -10,8 +10,10 @@ import {
   Sun,
 } from "lucide-react";
 
-import { AuthControls, GoogleLoginButton } from "@/components/profile/auth-controls";
+import { AuthControls, GoogleLoginButton, MyPublicPageLink } from "@/components/profile/auth-controls";
+import { useAccountBusy, useCurrentProfile, useLinks, useLinkWrite } from "@/hooks/use-account-data";
 import { observeAuth } from "@/lib/firebase-auth";
+import { ProfileEditor } from "@/components/profile/profile-editor";
 import { LinkCard } from "@/components/profile/link-card";
 import { LinkForm } from "@/components/profile/link-form";
 import { isSafeExternalUrl, type LinkFormValues } from "@/lib/link-validation";
@@ -35,20 +37,20 @@ function resolveTheme(theme: ThemePreference) {
 }
 
 function AuthenticatedProfile() {
-  const profile = useProfileStore((state) => state.profile);
-  const blocks = useProfileStore((state) => state.blocks);
-  const addLink = useProfileStore((state) => state.addLink);
-  const loadLinks = useProfileStore((state) => state.loadLinks);
-  const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
-  const isMutatingLinks = useProfileStore((state) => state.isMutatingLinks);
-  const linksError = useProfileStore((state) => state.linksError);
+  const { profile } = useCurrentProfile();
+  const linksQuery = useLinks();
+  const blocks = linksQuery.data;
+  const linkWrite = useLinkWrite();
+  const isLoadingLinks = linksQuery.isFetching;
+  const isMutatingLinks = useAccountBusy("links");
+  const linksError = linksQuery.isError ? "링크를 불러오지 못했어요. 다시 시도해 주세요." : null;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const visibleBlocks = useMemo(
     () =>
-      blocks
+      (blocks || [])
         .filter((block) => block.visible)
-        .filter((block) => block.type === "section" || isSafeExternalUrl(block.url)),
+        .filter((block) => isSafeExternalUrl(block.url)),
     [blocks],
   );
 
@@ -58,7 +60,7 @@ function AuthenticatedProfile() {
   }
 
   async function handleAddLink(values: LinkFormValues) {
-    await addLink(values);
+    await linkWrite.mutateAsync({ type: "add", values });
     setDialogOpen(false);
     showStatus(values.title + " 링크를 추가했어요.");
   }
@@ -70,9 +72,9 @@ function AuthenticatedProfile() {
 
   if (!profile) return null;
 
-  const initial = profile.displayName.trim().charAt(0) || "M";
+  const initial = profile.username.trim().charAt(0) || "M";
   const hasVisibleLinks = visibleBlocks.some((block) => block.type === "link");
-  const isInitialLoading = isLoadingLinks && blocks.length === 0;
+  const isInitialLoading = linksQuery.isPending;
 
   return (
     <>
@@ -82,18 +84,15 @@ function AuthenticatedProfile() {
         <section className="flex flex-col items-center text-center" aria-labelledby="profile-name">
           <Avatar className="size-24 rounded-[26px] shadow-[0_14px_36px_-22px_var(--primary)] after:rounded-[26px]">
             {profile.avatarUrl ? (
-              <AvatarImage className="rounded-[26px]" src={profile.avatarUrl} alt={`${profile.displayName} 프로필 사진`} />
+              <AvatarImage className="rounded-[26px]" src={profile.avatarUrl} alt={`${profile.username} 프로필 사진`} />
             ) : null}
             <AvatarFallback className="rounded-[26px] bg-primary/10 text-2xl font-medium text-primary">
               {initial}
             </AvatarFallback>
           </Avatar>
-          <h1 id="profile-name" className="mt-5 text-[28px] font-medium tracking-[-0.02em] text-foreground">
-            {profile.displayName}
-          </h1>
-          {profile.username ? <p className="mt-1 text-sm text-muted-foreground">@{profile.username}</p> : null}
-          {profile.email ? <p className="mt-2 break-all text-sm text-muted-foreground">{profile.email}</p> : null}
-          <p className="mt-5 max-w-md text-[16px] leading-7 text-foreground/75">{profile.bio}</p>
+          <ProfileEditor profile={profile} field="username" />
+          <ProfileEditor profile={profile} field="displayname" />
+          <ProfileEditor profile={profile} field="bio" />
         </section>
 
         <section className="mt-10" aria-labelledby="link-list-title">
@@ -134,18 +133,10 @@ function AuthenticatedProfile() {
             {linksError ? (
               <div className="rounded-[20px] bg-muted px-6 py-6 text-center">
                 <p className="text-sm text-destructive" role="alert">{linksError}</p>
-                <Button variant="outline" className="mt-3" onClick={() => void loadLinks()}>다시 시도</Button>
+                <Button variant="outline" className="mt-3" onClick={() => void linksQuery.refetch()}>다시 시도</Button>
               </div>
             ) : null}
-            {visibleBlocks.map((block) =>
-              block.type === "section" ? (
-                <h3 key={block.id} className="px-1 pb-1 pt-5 text-[14px] font-medium text-muted-foreground first:pt-0">
-                  {block.title}
-                </h3>
-              ) : (
-                <LinkCard key={block.id} block={block} onSuccess={showStatus} />
-              ),
-            )}
+            {visibleBlocks.map((block) => <LinkCard key={block.id} block={block} onSuccess={showStatus} />)}
 
             {!isLoadingLinks && !linksError && !hasVisibleLinks ? (
               <div className="rounded-[20px] bg-muted px-6 py-10 text-center text-sm text-muted-foreground">
@@ -173,7 +164,8 @@ export function MyPage() {
   const sessionId = useProfileStore((state) => state.sessionId);
   const isAuthLoading = useProfileStore((state) => state.isAuthLoading);
   const authError = useProfileStore((state) => state.authError);
-  const profileError = useProfileStore((state) => state.profileError);
+  const profileQuery = useCurrentProfile();
+  const profileError = profileQuery.isError ? "프로필을 불러오지 못했어요. 새로고침해 주세요." : null;
   const setUser = useProfileStore((state) => state.setUser);
   const failAuth = useProfileStore((state) => state.failAuth);
   const theme = useProfileStore((state) => state.theme);
@@ -205,6 +197,7 @@ export function MyPage() {
             <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={() => setTheme(resolveTheme(theme) === "dark" ? "light" : "dark")} aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
               {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             </Button>
+            <MyPublicPageLink />
             <AuthControls />
           </div>
         </div>
