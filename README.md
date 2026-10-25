@@ -1,91 +1,81 @@
 # MyLink
 
-Manage personal links at `/` and share a public profile at `/{displayname}`.
-
-## Local development
+## Start
 
 Run `npm install`, copy `.env.example` to `.env.local`, fill in the Firebase
-web configuration, and run `npm run dev`. The existing local environment targets
-`mylink-1e58b`. Environment values prefixed with `NEXT_PUBLIC_` are public web
-configuration, bundled at build time. Restart/rebuild after changing them.
+configuration, and run `npm run dev`. Both login and link management use `/`.
+The legacy `/mypage` path redirects there. Enable Google sign-in in Firebase
+Authentication and add localhost/deployed hosts to Authorized domains.
 
-## Authentication and profiles
+## Firestore structure
 
-Enable Google under Firebase Authentication and authorize localhost and the
-production domain. `onAuthStateChanged` owns login state; logout clears account
-queries. The legacy `/mypage` URL redirects to `/`.
+Only these two paths are used:
 
-- `username`: the person's large displayed name; editable, duplicates allowed.
-- `displayname`: the unique identifier shown as `@displayname` and used in the
-  profile URL. Defaults to the email prefix, is lowercased, and accepts 1–40
-  letters/numbers/dots/underscores/hyphens. Reserved application paths are rejected.
-- `bio`: editable introduction, up to 500 characters.
+`users/{uid}` stores `email`, `username`, `displayname`, `bio`, `avatarUrl`,
+and `createdAt`. Profile edits can also set `updatedAt`.
 
-Click any of those displayed fields to edit in place. Confirmation automatically
-checks handle ownership in the save transaction; there is no separate check button.
-Legacy `displayName` values are migrated to `username` on the next authenticated
-profile load. Existing email, photo, and signup date are preserved. If the initial
-email-prefix handle belongs to another user, initialization uses a UID-based suffix.
+`users/{uid}/links/{linkId}` stores each link's title, description, URL, icon,
+visibility, sort order, and server-generated creation timestamp.
 
-Private documents live at `users/{uid}` and links at `users/{uid}/links/{linkId}`.
-`createdAt` is a server timestamp set on first signup. Profile edits preserve it.
-The previous anonymous link collection is not copied automatically.
+- `username`: person's name, displayed prominently; duplicate names are allowed.
+- `displayname`: identifier shown as `@displayname` and used in `/{displayname}`.
+  It starts with the email prefix and can be edited with validation.
+- `bio`: introduction, up to 500 characters.
 
-## Public pages and rules
+Login creates only the user's document if missing. Existing email, photo and
+signup date are preserved. Legacy name fields are migrated in place when needed.
+The previous `handles`, `publicProfiles`, and `profile` subcollections are no
+longer read or written. Existing remote documents in those collections are left
+untouched; they can be removed separately if desired.
 
-A transaction reserves `handles/{displayname}` with the owner's UID, saves the
-private profile, and publishes a projection at `publicProfiles/{uid}` containing
-only UID, username, displayname, bio and avatarUrl. A handle change releases the
-old reservation. Email is never included in the public projection or rendered UI.
+## Public profiles and identifier checks
 
-The dynamic route looks up the handle, then reads the public profile and visible
-links from `users/{uid}/links`. Links are shown newest first; unsafe URLs and
-hidden links are omitted. Missing or invalid handles return 404. No profile-specific
-metadata is generated. A direct public-page button sits immediately left of the account menu.
-The dropdown contains only profile URL copying and sign-out. Copying reports
-through top-center Sonner toasts.
+The public page queries `users` by `displayname`, then reads that UID's links.
+Visible links are displayed newest first; unsafe URLs are filtered out. Missing,
+invalid or ambiguous identifiers return 404. No profile-specific metadata is added.
+Header navigation and profile URL copying use the current identifier.
 
-**Publish the updated `firestore.rules` before using public pages or handle changes.**
-The file allows public reads only of handle lookups, public projections, and visible
-links, while private user documents and writes remain owner-only. `firebase.json`
-points to these rules. With an authenticated Firebase CLI:
+Confirmation checks for another user with the same identifier before writing.
+This deliberately simple query-based check is not an atomic global uniqueness
+constraint: simultaneous saves can race. No reservation collection is used.
 
-`firebase deploy --only firestore:rules --project mylink-1e58b`
+## Security rules
 
-The app does not automatically publish security rules. An account must load once
-to initialize/migrate its handle and public projection before its page is available.
+Publish `firestore.rules` through the Firebase console. The rules have exactly
+two matches: `users/{userId}` and `users/{userId}/links/{linkId}`.
+Anyone can read them; only a signed-in user whose UID matches the path can write.
+This includes public access to stored emails and links marked `visible: false`;
+the page visibility filter is a presentation setting, not a security boundary.
+Unlisted collections are denied by default.
 
-## Queries, mutations and optimistic updates
+The application code is intentionally limited to those two paths. No extra
+handle lookup or public-profile permissions are needed.
 
-TanStack Query owns profile/link data, deduplicated reads, and per-account/session
-caches. Zustand keeps authentication and theme only. Polling, focus refreshes and
-reconnect refreshes are disabled; links are loaded on entry and refreshed after writes.
-Link editing and deletion keep their existing UI until write and list refresh finish.
+## Queries and optimistic updates
 
-Profile confirmation updates the query cache synchronously, closes the inline editor
-immediately after that cache change, and persists in the background. No network
-response is required to display the new name/identifier/bio. A failed save restores
-the previous cache and shows an error toast; a successful save revalidates the data.
-Durable Firestore storage still requires a successful server write.
+TanStack Query owns server data; Zustand keeps authentication and theme.
+Profile confirmation updates the cache and closes the inline editor without
+waiting for the network. Saving happens in the background; errors restore the
+previous values and show a Sonner toast. Link writes keep their existing UI until
+the server write and list refresh finish. There is no realtime subscription.
 
-## Validation
+## Tests
 
-`npm test` uses real Zod and TanStack Query with mocked Firebase transport. It
-covers validation, handle conflicts, migrations, visible public links, optimistic
-cache updates before network completion, rollback and account-cache isolation.
-`npm run lint` and `npm run build` validate lint, types, and routes.
+- `npm test`: application tests with mocked Firebase transport.
+- `npm run lint`: ESLint.
+- `npm run build`: production build and type checking.
+- `npm run test:rules`: rules tests when `FIRESTORE_EMULATOR_HOST` points to a
+  local emulator (Java 21). The demo project is `demo-mylink-rules`; no production
+  data is touched. Example with Firebase CLI installed:
 
-## Browser extension compatibility
+`firebase emulators:exec --only firestore --project demo-mylink-rules "npm run test:rules"`
 
-`htmlLimitedBots: /.*/` disables streaming metadata to avoid the reported extension
-injection into Next.js' hidden metadata wrapper. Future asynchronous metadata can
-therefore delay the initial response. If an extension still injects
-`data-wxt-integrated` / `__endic_crx__`, disable it on localhost and reload.
+## Development server network access
 
-### Local server network access
+Public pages require outbound Firestore access from the server process. If it
+logs `connect EACCES` and Firebase reports "client is offline", restart the dev
+server with network access permitted. Network errors are not converted to 404.
 
-Server-rendered public profiles require outbound HTTPS access to Firestore.
-If a managed development server logs `connect EACCES` followed by a misleading
-Firebase "client is offline" error, restart that server with network access
-permitted. The browser can remain online while the server process is blocked.
-Do not convert those network errors to missing-profile 404 responses.
+Streaming metadata is disabled via `htmlLimitedBots: /.*/` to avoid a known
+browser-extension DOM injection conflict. Disable the responsible extension on
+localhost if it still injects `data-wxt-integrated` / `__endic_crx__` elements.

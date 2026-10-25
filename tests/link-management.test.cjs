@@ -114,24 +114,28 @@ test("the service refuses to target a different UID", async () => {
 function profileFixture(existing = null) {
   const user = { uid: "profile-user", displayName: "Google 이름", email: "owner@example.com", photoURL: "https://example.com/photo.png" };
   const auth = { currentUser: user };
-  const state = { data: existing, writes: 0, fail: false, handles: new Map(), publicProfiles: new Map() };
-  const read = (ref) => {
-    const data = ref.collection === "users" ? state.data : state[ref.collection].get(ref.id);
-    return { exists: () => data != null, data: () => data };
-  };
+  const state = { data: existing, writes: 0, others: new Map(), paths: [] };
+  const apply = (data) => { if (!state.data) throw new Error("not-found"); state.writes++; state.data = { ...state.data, ...data }; };
   const profileModule = loadModule("src/lib/firebase-profile.ts", {
     "@/lib/firebase": { db: {}, auth }, "@/lib/profile-validation": profileValidation,
     "firebase/firestore": {
-      doc: (_db, collection, id) => ({ collection, id }),
+      doc: (_db, collection, id) => { state.paths.push(collection + "/" + id); assert.equal(collection, "users"); return id; },
+      collection: (_db, collection) => { assert.equal(collection, "users"); return collection; },
+      where: (field, operator, value) => { assert.equal(field, "displayname"); assert.equal(operator, "=="); return value; },
+      limit: (count) => count,
+      query: (_collection, handle, count) => ({ handle, count }),
+      getDocs: async ({ handle, count }) => {
+        const records = [...state.others.entries(), ...(state.data ? [[user.uid, state.data]] : [])];
+        return { docs: records.filter(([, data]) => data.displayname === handle).slice(0, count).map(([id, data]) => ({ id, data: () => data })) };
+      },
+      updateDoc: async (_ref, data) => apply(data),
       serverTimestamp: () => "SERVER_SIGNUP_TIME",
       runTransaction: async (_db, callback) => {
-        if (state.fail) throw new Error("permission-denied");
         const writes = [];
         const result = await callback({
-          get: async (ref) => read(ref),
-          set: (ref, data) => writes.push(() => { if (ref.collection === "users") { state.writes++; state.data = data; } else state[ref.collection].set(ref.id, data); }),
-          update: (_ref, data) => writes.push(() => { state.writes++; state.data = { ...state.data, ...data }; }),
-          delete: (ref) => writes.push(() => state[ref.collection].delete(ref.id)),
+          get: async () => ({ exists: () => state.data != null, data: () => state.data }),
+          set: (_ref, data) => writes.push(() => { state.writes++; state.data = data; }),
+          update: (_ref, data) => writes.push(() => apply(data)),
         });
         writes.forEach((write) => write()); return result;
       },
@@ -140,57 +144,46 @@ function profileFixture(existing = null) {
   return { user, auth, state, profileModule };
 }
 
-test("login initializes person name and unique email-prefix handle without publishing email", async () => {
+test("login stores profile and email only in users/{uid}, preserving signup date", async () => {
   const { user, state, profileModule } = profileFixture();
   const profile = await profileModule.fetchUserProfile(user);
   assert.equal(profile.username, "owner"); assert.equal(profile.displayname, "owner");
-  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
-  assert.equal(state.handles.get("owner").uid, user.uid);
-  assert.equal(state.publicProfiles.get(user.uid).email, undefined);
+  assert.equal(state.data.email, "owner@example.com"); assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
   const writes = state.writes;
   await profileModule.fetchUserProfile(user);
   assert.equal(state.writes, writes);
-  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
+  assert.ok(state.paths.every((path) => path === "users/" + user.uid));
 });
 
-test("legacy profile migration preserves person name, private email, photo and signup date", async () => {
-  const { user, state, profileModule } = profileFixture({ displayName: "기존 사람 이름", email: "original@example.com", avatarUrl: null, createdAt: 123, bio: "소개" });
+test("legacy migration preserves name, email, avatar and signup date", async () => {
+  const { user, state, profileModule } = profileFixture({ displayName: "기존 이름", email: "original@example.com", avatarUrl: null, createdAt: 123, bio: "소개" });
   const profile = await profileModule.fetchUserProfile(user);
-  assert.equal(profile.username, "기존 사람 이름"); assert.equal(profile.displayname, "owner");
-  assert.equal(state.data.createdAt, 123); assert.equal(state.data.email, "original@example.com");
-  assert.equal(state.data.avatarUrl, null);
+  assert.equal(profile.username, "기존 이름"); assert.equal(profile.displayname, "owner");
+  assert.equal(state.data.createdAt, 123); assert.equal(state.data.email, "original@example.com"); assert.equal(state.data.avatarUrl, null);
 });
 
-test("person names can duplicate; only handles are reserved and moved atomically", async () => {
+test("profile edit queries users for duplicate identifiers; duplicate person names are allowed", async () => {
   const { user, state, profileModule } = profileFixture();
   await profileModule.fetchUserProfile(user);
-  state.publicProfiles.set("other-user", { username: "홍길동", displayname: "another" });
+  state.others.set("other", { username: "홍길동", displayname: "taken" });
   await profileModule.updateUserProfile(user.uid, { username: "홍길동", displayname: "NEW-ID", bio: "새 소개" });
   assert.equal(state.data.username, "홍길동"); assert.equal(state.data.displayname, "new-id");
-  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME");
-  assert.equal(state.handles.has("owner"), false); assert.equal(state.handles.get("new-id").uid, user.uid);
-  assert.equal(state.publicProfiles.get(user.uid).username, "홍길동");
-});
-
-test("a conflicting handle fails on confirmation with no partial profile writes", async () => {
-  const { user, state, profileModule } = profileFixture();
-  await profileModule.fetchUserProfile(user);
-  state.handles.set("taken", { uid: "other-user" });
+  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME"); assert.equal(state.data.email, user.email);
   const before = state.data;
   await assert.rejects(profileModule.updateUserProfile(user.uid, { username: "이름", displayname: "taken", bio: "" }), /이미 사용 중/);
-  assert.equal(state.data, before); assert.equal(state.handles.get("owner").uid, user.uid);
+  assert.equal(state.data, before);
+  await profileModule.updateUserProfile(user.uid, { username: "이름 변경", displayname: "new-id", bio: "" });
+  assert.equal(state.data.username, "이름 변경");
 });
 
-test("profile validation rejects reserved and unsafe handles but permits duplicate human names", () => {
+test("profile validation rejects reserved/unsafe identifiers", () => {
   for (const displayname of ["mypage", "api", "u", "bad/route", "bad space", "@owner", ""]) {
-    assert.equal(profileValidation.profileFormSchema.safeParse({ username: "사람 이름", displayname, bio: "" }).success, false);
+    assert.equal(profileValidation.profileFormSchema.safeParse({ username: "이름", displayname, bio: "" }).success, false);
   }
-  assert.equal(profileValidation.profileFormSchema.parse({ username: "사람 이름", displayname: "OWNER", bio: "" }).displayname, "owner");
 });
 
 test("profile writes require the matching signed-in account", async () => {
-  const { user, auth, state, profileModule } = profileFixture();
-  auth.currentUser = null;
+  const { user, auth, state, profileModule } = profileFixture(); auth.currentUser = null;
   await assert.rejects(profileModule.fetchUserProfile(user), /로그인/);
   await assert.rejects(profileModule.updateUserProfile(user.uid, { username: "name", displayname: "owner", bio: "" }), /로그인/);
   assert.equal(state.writes, 0);
@@ -413,44 +406,44 @@ test("optimistic profile onMutate is synchronous and does not wait for network",
 
 function publicFixture() {
   class Timestamp { constructor(value) { this.value = value; } toMillis() { return this.value; } }
-  const state = { lookup: { uid: "owner-id" }, profile: { uid: "owner-id", username: "홍길동", displayname: "owner", bio: "소개", avatarUrl: null, email: "private@example.com" }, reads: [], links: [] };
+  const state = { profiles: [{ id: "owner-id", data: { username: "홍길동", displayname: "owner", bio: "소개", avatarUrl: null, email: "owner@example.com" } }], reads: [], links: [] };
   const { service } = fixture();
   const api = loadModule("src/lib/firebase-public-profile.ts", {
     "@/lib/firebase": { db: {} }, "@/lib/firebase-links": service, "@/lib/profile-validation": profileValidation,
     "firebase/firestore": {
       Timestamp,
-      doc: (_db, collection, id) => ({ collection, id }),
-      getDoc: async (ref) => { state.reads.push(ref); const data = ref.collection === "handles" ? state.lookup : state.profile; return { exists: () => data != null, data: () => data }; },
-      collection: (_db, ...segments) => { assert.equal(segments.join("/"), "users/owner-id/links"); return "links"; },
-      where: (field, operator, value) => { assert.equal(field, "visible"); assert.equal(operator, "=="); assert.equal(value, true); return "visible-only"; },
-      query: (_ref, filter) => { assert.equal(filter, "visible-only"); return "links-query"; },
-      getDocs: async () => ({ docs: state.links.map(({ id, ...data }) => ({ id, data: () => data })) }),
+      collection: (_db, ...segments) => { const collection = segments.join("/"); assert.ok(collection === "users" || collection === "users/owner-id/links"); return collection; },
+      where: (field, operator, value) => { assert.equal(operator, "=="); return { field, value }; },
+      limit: (count) => count,
+      query: (collection, filter, count) => ({ collection, filter, count }),
+      getDocs: async ({ collection, filter, count }) => {
+        state.reads.push(collection);
+        if (collection === "users") {
+          assert.equal(filter.field, "displayname");
+          return { docs: state.profiles.filter(({ data }) => data.displayname === filter.value).slice(0, count).map(({ id, data }) => ({ id, data: () => data })) };
+        }
+        assert.equal(filter.field, "visible"); assert.equal(filter.value, true);
+        return { docs: state.links.map(({ id, ...data }) => ({ id, data: () => data })) };
+      },
     },
   });
   return { state, api, Timestamp };
 }
 
-test("public route resolves handle to UID, selects visible safe links, and omits email", async () => {
+test("public page finds user by displayname and reads their visible links", async () => {
   const { state, api, Timestamp } = publicFixture();
   const link = { ...values, type: "link", icon: "globe", visible: true, sortOrder: 0 };
-  state.links = [
-    { ...link, id: "old", createdAt: new Timestamp(1) },
-    { ...link, id: "new", createdAt: new Timestamp(2) },
-    { ...link, id: "hidden", visible: false },
-    { ...link, id: "unsafe", url: "javascript:alert(1)" },
-  ];
+  state.links = [{ ...link, id: "old", createdAt: new Timestamp(1) }, { ...link, id: "new", createdAt: new Timestamp(2) }, { ...link, id: "hidden", visible: false }, { ...link, id: "unsafe", url: "javascript:alert(1)" }];
   const result = await api.fetchPublicProfile("owner");
   assert.equal(result.profile.username, "홍길동"); assert.equal(result.profile.displayname, "owner");
-  assert.equal(result.profile.email, undefined);
   assert.equal(result.links.map((link) => link.id).join(","), "new,old");
-  assert.equal(state.reads[0].collection, "handles"); assert.equal(state.reads[1].id, "owner-id");
+  assert.equal(state.reads.join(","), "users,users/owner-id/links");
 });
 
-test("missing, mismatched or invalid public displaynames produce not-found results", async () => {
+test("invalid, missing or ambiguous public identifiers return not-found", async () => {
   const { state, api } = publicFixture();
   assert.equal(await api.fetchPublicProfile("bad handle"), null); assert.equal(state.reads.length, 0);
-  state.lookup = null; assert.equal(await api.fetchPublicProfile("missing"), null);
-  state.lookup = { uid: "owner-id" }; state.profile = null; assert.equal(await api.fetchPublicProfile("owner"), null);
-  state.profile = { uid: "owner-id", username: "이름", displayname: "different", bio: "", avatarUrl: null };
+  assert.equal(await api.fetchPublicProfile("missing"), null);
+  state.profiles.push({ id: "another", data: { ...state.profiles[0].data } });
   assert.equal(await api.fetchPublicProfile("owner"), null);
 });

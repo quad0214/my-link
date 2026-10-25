@@ -6,7 +6,7 @@ import { profileFormSchema, type ProfileFormValues } from "@/lib/profile-validat
 import type { LinkBlock, Profile } from "@/types/profile";
 
 export type AccountSession = { user: AuthUser; sessionId: number };
-export const accountKey = (session: AccountSession) => ["account", session.user.uid, session.sessionId, "profile-v3"] as const;
+export const accountKey = (session: AccountSession) => ["account", session.user.uid, session.sessionId, "profile-v4"] as const;
 export const profileKey = (session: AccountSession) => [...accountKey(session), "profile"] as const;
 export const linksKey = (session: AccountSession) => [...accountKey(session), "links"] as const;
 export function profileOptions(session: AccountSession) {

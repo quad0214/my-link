@@ -1,38 +1,22 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
-    function ownsHandle(uid) {
-      let profile = getAfter(/databases/$(database)/documents/users/$(uid)).data;
-      return getAfter(/databases/$(database)/documents/handles/$(profile.displayname)).data.uid == uid;
-    }
-    match /users/{uid} {
-      allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && ownsHandle(uid);
-      allow delete: if isOwner(uid);
+
+    // 사용자 프로필: 누구나 읽기, 로그인한 본인만 쓰기
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId;
+
+      // 사용자 링크: 누구나 읽기, 로그인한 본인만 쓰기
       match /links/{linkId} {
-        allow read: if isOwner(uid) || resource.data.visible == true;
-        allow write: if isOwner(uid);
+        allow read: if true;
+        allow write: if request.auth != null
+          && request.auth.uid == userId;
       }
     }
-    match /handles/{handle} {
-      allow get: if true;
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(['uid'])
-        && request.resource.data.uid == request.auth.uid
-        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayname == handle;
-      allow delete: if isOwner(resource.data.uid)
-        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayname != handle;
-    }
-    match /publicProfiles/{uid} {
-      allow get: if true;
-      allow create, update: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['uid', 'username', 'displayname', 'bio', 'avatarUrl'])
-        && request.resource.data.uid == uid
-        && request.resource.data.username == getAfter(/databases/$(database)/documents/users/$(uid)).data.username
-        && request.resource.data.displayname == getAfter(/databases/$(database)/documents/users/$(uid)).data.displayname
-        && request.resource.data.bio == getAfter(/databases/$(database)/documents/users/$(uid)).data.bio
-        && request.resource.data.avatarUrl == getAfter(/databases/$(database)/documents/users/$(uid)).data.avatarUrl;
-    }
+
+    // 명시하지 않은 경로는 기본적으로 접근 차단
   }
 }

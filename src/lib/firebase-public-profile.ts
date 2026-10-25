@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, limit, query, where, Timestamp } from "firebase/firestore";
 import { z } from "zod";
 import { db } from "@/lib/firebase";
 import { linkSchema } from "@/lib/firebase-links";
@@ -6,21 +6,20 @@ import { displaynameSchema } from "@/lib/profile-validation";
 import type { LinkBlock, Profile } from "@/types/profile";
 
 const publicSchema = z.object({
-  uid: z.string().min(1), username: z.string().min(1).max(100), displayname: displaynameSchema,
+  username: z.string().min(1).max(100), displayname: displaynameSchema,
   bio: z.string().max(500), avatarUrl: z.url().refine((value) => /^https?:\/\//i.test(value)).nullable().catch(null),
 });
 
 export async function fetchPublicProfile(handle: string): Promise<{ profile: Profile; links: LinkBlock[] } | null> {
   const parsed = displaynameSchema.safeParse(handle);
   if (!parsed.success) return null;
-  const lookup = await getDoc(doc(db, "handles", parsed.data));
-  if (!lookup.exists() || typeof lookup.data().uid !== "string") return null;
-  const uid = lookup.data().uid as string;
-  if (uid.includes("/")) return null;
-  const snapshot = await getDoc(doc(db, "publicProfiles", uid));
-  if (!snapshot.exists()) return null;
-  const result = publicSchema.safeParse(snapshot.data());
-  if (!result.success || result.data.uid !== uid || result.data.displayname !== parsed.data) return null;
+  const matches = await getDocs(query(collection(db, "users"), where("displayname", "==", parsed.data), limit(2)));
+  // A duplicate identifier is ambiguous: never show an arbitrary user's page.
+  if (matches.docs.length !== 1) return null;
+  const document = matches.docs[0];
+  const uid = document.id;
+  const result = publicSchema.safeParse(document.data());
+  if (!result.success || result.data.displayname !== parsed.data) return null;
   const response = await getDocs(query(collection(db, "users", uid, "links"), where("visible", "==", true)));
   const links: { block: LinkBlock; createdAt: number }[] = [];
   for (const document of response.docs) {
