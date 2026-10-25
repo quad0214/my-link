@@ -81,3 +81,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Browser extension hydration conflicts
+
+`next.config.ts` disables metadata streaming with `htmlLimitedBots: /.*/`.
+This removes the hidden metadata wrapper targeted by the reported extension
+injection (`data-wxt-integrated` / `__endic_crx__`). Metadata resolves before
+rendering, so future asynchronous metadata can delay the initial response.
+If a hydration error still mentions these injected elements, disable the
+responsible extension for localhost and reload. This setting cannot prevent
+extensions from modifying other parts of the document.
