@@ -1,7 +1,7 @@
 import { collection, doc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { AuthUser } from "@/lib/firebase-auth";
-import { displaynameSchema, profileFormSchema, type ProfileFormValues } from "@/lib/profile-validation";
+import { displaynameSchema, profileUpdateSchema, type ProfileUpdateValues } from "@/lib/profile-validation";
 import type { Profile } from "@/types/profile";
 
 export function googleProfile(user: AuthUser): Profile {
@@ -54,10 +54,9 @@ export async function fetchUserProfile(user: AuthUser): Promise<Profile> {
   });
 }
 
-export async function updateUserProfile(uid: string, values: ProfileFormValues): Promise<void> {
+export async function updateUserProfile(uid: string, values: ProfileUpdateValues): Promise<void> {
   requireOwner(uid);
-  const data = profileFormSchema.parse(values);
-  if (!(await isDisplaynameAvailable(uid, data.displayname))) throw new Error("이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요.");
-  requireOwner(uid);
+  // The update schema strips displayname, even if supplied by an older client.
+  const data = profileUpdateSchema.parse(values);
   await updateDoc(doc(db, "users", uid), { ...data, updatedAt: serverTimestamp() });
 }

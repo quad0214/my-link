@@ -20,11 +20,20 @@ test("public reads and owner-only writes on the two application paths", { skip: 
         await assertFails(updateDoc(doc(other, documentPath), { value: "other" }));
         await assertFails(deleteDoc(doc(other, documentPath)));
         await assertSucceeds(updateDoc(doc(own, documentPath), { value: "owner" }));
-        await assertSucceeds(deleteDoc(doc(own, documentPath)));
+        if (documentPath === "users/alice") await assertFails(deleteDoc(doc(own, documentPath)));
+        else await assertSucceeds(deleteDoc(doc(own, documentPath)));
         await assertFails(setDoc(doc(guest, documentPath), { value: "guest" }));
         await assertFails(setDoc(doc(other, documentPath), { value: "other" }));
       });
     }
+    await t.test("displayname can be assigned once but cannot be changed or removed", async () => {
+      const ref = doc(own, "users/alice");
+      await assertSucceeds(updateDoc(ref, { displayname: "alice" }));
+      await assertSucceeds(updateDoc(ref, { username: "사람 이름", bio: "소개" }));
+      await assertFails(updateDoc(ref, { displayname: "different" }));
+      await assertFails(setDoc(ref, { username: "remove the identifier" }));
+      await assertFails(deleteDoc(ref));
+    });
     await t.test("user and link queries are publicly readable", async () => {
       await assertSucceeds(getDocs(collection(guest, "users")));
       await assertSucceeds(getDocs(collection(guest, "users/alice/links")));

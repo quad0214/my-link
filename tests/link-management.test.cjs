@@ -162,18 +162,14 @@ test("legacy migration preserves name, email, avatar and signup date", async () 
   assert.equal(state.data.createdAt, 123); assert.equal(state.data.email, "original@example.com"); assert.equal(state.data.avatarUrl, null);
 });
 
-test("profile edit queries users for duplicate identifiers; duplicate person names are allowed", async () => {
+test("profile edits change only name and bio, ignoring forged displayname changes", async () => {
   const { user, state, profileModule } = profileFixture();
   await profileModule.fetchUserProfile(user);
-  state.others.set("other", { username: "홍길동", displayname: "taken" });
-  await profileModule.updateUserProfile(user.uid, { username: "홍길동", displayname: "NEW-ID", bio: "새 소개" });
-  assert.equal(state.data.username, "홍길동"); assert.equal(state.data.displayname, "new-id");
-  assert.equal(state.data.createdAt, "SERVER_SIGNUP_TIME"); assert.equal(state.data.email, user.email);
-  const before = state.data;
-  await assert.rejects(profileModule.updateUserProfile(user.uid, { username: "이름", displayname: "taken", bio: "" }), /이미 사용 중/);
-  assert.equal(state.data, before);
-  await profileModule.updateUserProfile(user.uid, { username: "이름 변경", displayname: "new-id", bio: "" });
-  assert.equal(state.data.username, "이름 변경");
+  const before = { ...state.data };
+  await profileModule.updateUserProfile(user.uid, { username: "수정 이름", displayname: "forged-id", bio: "새 소개" });
+  assert.equal(state.data.username, "수정 이름"); assert.equal(state.data.bio, "새 소개");
+  assert.equal(state.data.displayname, before.displayname);
+  assert.equal(state.data.createdAt, before.createdAt); assert.equal(state.data.email, before.email);
 });
 
 test("profile validation rejects reserved/unsafe identifiers", () => {
@@ -446,4 +442,27 @@ test("invalid, missing or ambiguous public identifiers return not-found", async 
   assert.equal(await api.fetchPublicProfile("missing"), null);
   state.profiles.push({ id: "another", data: { ...state.profiles[0].data } });
   assert.equal(await api.fetchPublicProfile("owner"), null);
+});
+
+
+test("optimistic profile updates cannot change the cached identifier", async () => {
+  const f = queryFixture();
+  const key = f.queries.profileKey(f.session);
+  await f.client.fetchQuery(f.queries.profileOptions(f.session));
+  const options = f.queries.profileWriteOptions(f.client, f.session, f.isCurrent);
+  options.onMutate({ username: "사람 이름", displayname: "forged-id", bio: "소개" });
+  assert.equal(f.client.getQueryData(key).displayname, "owner");
+  assert.equal(f.client.getQueryData(key).username, "사람 이름");
+  f.client.clear();
+});
+
+test("favicon URLs use the website origin without leaking link paths or credentials", () => {
+  const { faviconSources } = loadModule("src/lib/favicon.ts");
+  const github = faviconSources("https://github.com/owner/project?token=private");
+  assert.equal(github[0], "https://github.com/favicon.ico");
+  assert.ok(github[1].includes(encodeURIComponent("https://github.com")));
+  assert.ok(!github.join("").includes("private"));
+  assert.equal(faviconSources("https://user:pass@google.com/search?q=test")[0], "https://google.com/favicon.ico");
+  assert.equal(faviconSources("javascript:alert(1)").length, 0);
+  assert.equal(faviconSources("not-a-url").length, 0);
 });

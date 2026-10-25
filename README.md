@@ -19,7 +19,7 @@ visibility, sort order, and server-generated creation timestamp.
 
 - `username`: person's name, displayed prominently; duplicate names are allowed.
 - `displayname`: identifier shown as `@displayname` and used in `/{displayname}`.
-  It starts with the email prefix and can be edited with validation.
+  It starts with the email prefix and cannot be edited after assignment.
 - `bio`: introduction, up to 500 characters.
 
 Login creates only the user's document if missing. Existing email, photo and
@@ -35,15 +35,19 @@ Visible links are displayed newest first; unsafe URLs are filtered out. Missing,
 invalid or ambiguous identifiers return 404. No profile-specific metadata is added.
 Header navigation and profile URL copying use the current identifier.
 
-Confirmation checks for another user with the same identifier before writing.
-This deliberately simple query-based check is not an atomic global uniqueness
-constraint: simultaneous saves can race. No reservation collection is used.
+Identifier availability is queried only during initial assignment. Once assigned,
+`displayname` is read-only in the UI, stripped from profile-update payloads, and
+protected by a Security Rules update condition. Account-document deletion is
+also denied to prevent changing the identifier through deletion/recreation.
+Initial query-based assignment is not an atomic global uniqueness constraint.
 
 ## Security rules
 
 Publish `firestore.rules` through the Firebase console. The rules have exactly
 two matches: `users/{userId}` and `users/{userId}/links/{linkId}`.
 Anyone can read them; only a signed-in user whose UID matches the path can write.
+An assigned profile identifier cannot be changed, and the account document cannot
+be deleted. Links remain editable and deletable by their owner.
 This includes public access to stored emails and links marked `visible: false`;
 the page visibility filter is a presentation setting, not a security boundary.
 Unlisted collections are denied by default.
@@ -79,3 +83,11 @@ server with network access permitted. Network errors are not converted to 404.
 Streaming metadata is disabled via `htmlLimitedBots: /.*/` to avoid a known
 browser-extension DOM injection conflict. Disable the responsible extension on
 localhost if it still injects `data-wxt-integrated` / `__endic_crx__` elements.
+
+## Site favicons
+
+Management and public link cards load the destination origin's `/favicon.ico`.
+If that fails, the component tries Google's favicon service using the origin
+only, then shows a globe if neither image loads. Link paths, query strings and
+credentials are not sent to the fallback service. Existing links pick up their
+favicon without rewriting stored link documents.

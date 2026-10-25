@@ -91,7 +91,7 @@ function AuthenticatedProfile() {
             </AvatarFallback>
           </Avatar>
           <ProfileEditor profile={profile} field="username" />
-          <ProfileEditor profile={profile} field="displayname" />
+          <p className="mt-1 break-all text-sm text-muted-foreground" title="아이디는 변경할 수 없습니다.">@{profile.displayname}</p>
           <ProfileEditor profile={profile} field="bio" />
         </section>
 

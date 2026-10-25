@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ExternalLink, Link as LinkIcon } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { SiteFavicon } from "@/components/profile/site-favicon";
 import { fetchPublicProfile } from "@/lib/firebase-public-profile";
 import { createQueryClient } from "@/lib/query-client";
 
@@ -33,7 +34,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <section className="mt-10 space-y-3" aria-label="공개 링크">
           {links.map((link) => (
             <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-border/80 bg-card px-3 py-3 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary"><LinkIcon className="size-5" aria-hidden="true" /></span>
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary"><SiteFavicon url={link.url} /></span>
               <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{link.title}</span><span className="mt-1 block truncate text-[13px] text-muted-foreground">{link.description || link.url}</span></span>
               <ExternalLink className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             </a>

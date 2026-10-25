@@ -6,8 +6,15 @@ service cloud.firestore {
     // 사용자 프로필: 누구나 읽기, 로그인한 본인만 쓰기
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth != null
+      allow create: if request.auth != null
         && request.auth.uid == userId;
+      // 이미 지정한 displayname은 수정하거나 제거할 수 없음
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && (resource.data.get('displayname', null) == null
+          || request.resource.data.get('displayname', null) == resource.data.displayname);
+      // 삭제 후 재생성으로 아이디를 변경하는 것도 차단
+      allow delete: if false;
 
       // 사용자 링크: 누구나 읽기, 로그인한 본인만 쓰기
       match /links/{linkId} {

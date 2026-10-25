@@ -1,25 +1,19 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
-import { Camera, Code2, ExternalLink, Globe2, Link as LinkIcon, LoaderCircle, Pencil, Play, Trash2, type LucideProps } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, LoaderCircle, Pencil, Trash2 } from "lucide-react";
 
+import { SiteFavicon } from "@/components/profile/site-favicon";
 import { LinkForm } from "@/components/profile/link-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { LinkFormValues } from "@/lib/link-validation";
 import { useAccountBusy, useLinks, useLinkWrite } from "@/hooks/use-account-data";
-import type { LinkBlock, LinkIcon as LinkIconName } from "@/types/profile";
-
-const linkIcons: Record<LinkIconName, ComponentType<LucideProps>> = {
-  instagram: Camera,
-  youtube: Play,
-  globe: Globe2,
-  github: Code2,
-};
+import type { LinkBlock } from "@/types/profile";
 
 function LinkPreview({ block }: { block: LinkBlock }) {
-  const Icon = linkIcons[block.icon] ?? LinkIcon;
+
 
   return (
     <a
@@ -35,7 +29,7 @@ function LinkPreview({ block }: { block: LinkBlock }) {
       )}
     >
       <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
-        <Icon className="size-5" aria-hidden="true" />
+        <SiteFavicon url={block.url} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-medium text-foreground">{block.title}</span>

@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { AuthUser } from "@/lib/firebase-auth";
 import { fetchLinks, saveLink, updateLink, deleteLink } from "@/lib/firebase-links";
 import { fetchUserProfile, updateUserProfile } from "@/lib/firebase-profile";
-import { profileFormSchema, type ProfileFormValues } from "@/lib/profile-validation";
+import { profileUpdateSchema, type ProfileUpdateValues } from "@/lib/profile-validation";
 import type { LinkBlock, Profile } from "@/types/profile";
 
 export type AccountSession = { user: AuthUser; sessionId: number };
@@ -57,20 +57,20 @@ export function profileWriteOptions(client: QueryClient, session: AccountSession
   const key = profileKey(session);
   return {
     mutationKey: [...accountKey(session), "write", "profile"],
-    mutationFn: async (values: ProfileFormValues) => {
+    mutationFn: async (values: ProfileUpdateValues) => {
       if (!isCurrent()) throw new Error("로그인 후 이용해 주세요.");
-      await updateUserProfile(session.user.uid, profileFormSchema.parse(values));
+      await updateUserProfile(session.user.uid, profileUpdateSchema.parse(values));
     },
-    onMutate: (values: ProfileFormValues) => {
+    onMutate: (values: ProfileUpdateValues) => {
       if (!isCurrent()) throw new Error("로그인 후 이용해 주세요.");
-      const data = profileFormSchema.parse(values);
+      const data = profileUpdateSchema.parse(values);
       void client.cancelQueries({ queryKey: key, exact: true });
       const previous = client.getQueryData<Profile>(key);
       if (isCurrent()) client.setQueryData<Profile>(key, (old) => old ? { ...old, ...data } : old);
       onOptimistic?.();
       return { previous };
     },
-    onError: (_: Error, __: ProfileFormValues, context: { previous: Profile | undefined } | undefined) => {
+    onError: (_: Error, __: ProfileUpdateValues, context: { previous: Profile | undefined } | undefined) => {
       if (isCurrent() && context?.previous) client.setQueryData(key, context.previous);
     },
     onSettled: async () => {

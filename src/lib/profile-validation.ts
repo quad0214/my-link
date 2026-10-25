@@ -13,3 +13,6 @@ export const profileFormSchema = z.object({
 export type ProfileFormValues = z.infer<typeof profileFormSchema>;
 export const displayNameKey = (name: string) => displaynameSchema.parse(name);
 export const profilePath = (displayname: string) => "/" + encodeURIComponent(displayname);
+
+export const profileUpdateSchema = profileFormSchema.omit({ displayname: true });
+export type ProfileUpdateValues = z.infer<typeof profileUpdateSchema>;
