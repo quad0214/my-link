@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import type { Analytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
 
@@ -26,6 +27,7 @@ export const app = getApps().some((app) => app.name === "[DEFAULT]")
   : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 export async function getFirebaseAnalytics(): Promise<Analytics | null> {
   if (typeof window === "undefined" || !firebaseConfig.measurementId) {

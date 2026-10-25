@@ -26,20 +26,51 @@ Firebase data must be controlled using Firebase Security Rules.
 References: [Firebase web setup](https://firebase.google.com/docs/web/setup),
 [Analytics browser support](https://firebase.google.com/docs/reference/js/analytics#issupported).
 
+### Google login and personal profiles
+
+Both the signed-out screen and signed-in link manager are served at `/`.
+The legacy `/mypage` route redirects to `/`; logging in does not change the URL.
+The header uses Firebase Google sign-in and an account dropdown for preview,
+link copying, and sign-out. Preview opens `/u/{uid}` in a new tab, currently
+returning 404. Link copying currently writes the fixed URL `http://localhost:3000`
+to the clipboard and shows a Sonner success/error toast at the top center. An `onAuthStateChanged`
+observer is the source of authentication state. Signed-out visitors see a login
+prompt, and do not query or modify Firestore links. Account changes clear the
+previous account's data and discard stale asynchronous responses. Editing UI is
+remounted for each authenticated session.
+
+Before testing Google login in the Firebase console for `mylink-1e58b`:
+
+1. Enable **Authentication > Sign-in method > Google** and select a support email.
+2. Add `localhost` and your deployed hostname under **Authentication > Settings >
+   Authorized domains**.
+3. Publish the owner-only rules from `firestore.rules` in **Firestore > Rules**.
+   With an authenticated Firebase CLI, the equivalent command is:
+   `firebase deploy --only firestore:rules --project mylink-1e58b`.
+
+`firebase.json` points to the prepared rules. They allow access to a user's own
+profile and links only; this code change does not deploy them automatically.
+Client-side UID checks alone do not enforce server-side data privacy.
+
+On login (including restored sessions), a Firestore transaction creates a missing
+`users/{uid}` document with `displayName` (the email prefix before `@`), `email`,
+`avatarUrl`, and a server-generated `createdAt`. Existing documents are never
+rewritten, so their information and signup date survive repeated logins and
+concurrent tabs. The screen initially uses the email prefix, Google photo and email. Optional profile fields
+`displayName`, `username`, `bio`, and `avatarUrl` in `users/{uid}` override the
+Google display defaults. A stored email is displayed when present, otherwise Firebase Auth supplies it.
+A failed profile creation/read shows a notice and keeps the account defaults.
+
 ### Firestore links
 
-Links are stored as documents at `users/anonymous/links/{linkId}`. All visitors
-currently share the fixed `anonymous` document; this is not a Firebase Auth UID.
-Profile details still come from the mock profile, while the link list comes only
-from Firestore (mock links are not seeded).
-
-Enable the default Cloud Firestore database in the Firebase console and configure
-Security Rules to permit the intended reads, creates, updates, and deletes at that path. This
-repository does not deploy rules or change the project's access permissions.
+Every read, add, edit, and delete uses `users/{user.uid}/links/{linkId}`.
+Existing `users/anonymous/links` data is left untouched and is not automatically
+copied into a signed-in account. This page manages private account data; it is
+not a public profile sharing route.
 
 Each link stores `type`, `title`, `description`, `url`, `icon`, `visible`,
 `sortOrder`, and a server-generated `createdAt`. The document ID is used as the
-link ID. On page load, a one-time query reads `users/anonymous/links` ordered by
+link ID. On page load, a one-time query reads `users/{user.uid}/links` ordered by
 `createdAt` descending (newest first). After a successful link add, edit, or deletion, the list is
 fetched again. There is no realtime subscription. Documents must have a
 `createdAt` field to appear in this query. Failed writes keep the form open for
@@ -92,7 +123,8 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ### Link management tests
 
 Run `npm test` to verify shared validation, document updates/deletes,
-refresh behavior, and failure recovery with a mocked Firestore transport.
+refresh behavior, auth observation, signed-out guards, account switching, stale
+response rejection, and failure recovery with mocked Firebase transports.
 These automated tests do not modify the live Firebase project.
 
 ### Browser extension hydration conflicts

@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   LoaderCircle,
   Moon,
   Plus,
-  Share2,
+  Link as LinkIcon,
   Sun,
 } from "lucide-react";
 
+import { AuthControls, GoogleLoginButton } from "@/components/profile/auth-controls";
+import { observeAuth } from "@/lib/firebase-auth";
 import { LinkCard } from "@/components/profile/link-card";
 import { LinkForm } from "@/components/profile/link-form";
 import { isSafeExternalUrl, type LinkFormValues } from "@/lib/link-validation";
@@ -31,36 +34,16 @@ function resolveTheme(theme: ThemePreference) {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function MyPage() {
+function AuthenticatedProfile() {
   const profile = useProfileStore((state) => state.profile);
   const blocks = useProfileStore((state) => state.blocks);
-  const theme = useProfileStore((state) => state.theme);
   const addLink = useProfileStore((state) => state.addLink);
-  const setTheme = useProfileStore((state) => state.setTheme);
   const loadLinks = useProfileStore((state) => state.loadLinks);
   const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
   const isMutatingLinks = useProfileStore((state) => state.isMutatingLinks);
   const linksError = useProfileStore((state) => state.linksError);
-  const [isDark, setIsDark] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  useEffect(() => {
-    void loadLinks();
-  }, [loadLinks]);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = () => {
-      const nextIsDark = resolveTheme(theme) === "dark";
-      document.documentElement.classList.toggle("dark", nextIsDark);
-      setIsDark(nextIsDark);
-    };
-
-    applyTheme();
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [theme]);
-
   const visibleBlocks = useMemo(
     () =>
       blocks
@@ -68,32 +51,6 @@ export function MyPage() {
         .filter((block) => block.type === "section" || isSafeExternalUrl(block.url)),
     [blocks],
   );
-
-  function toggleTheme() {
-    setTheme(resolveTheme(theme) === "dark" ? "light" : "dark");
-  }
-
-  async function shareProfile() {
-    const shareData = {
-      title: `${profile.displayName}님의 마이링크`,
-      text: profile.bio,
-      url: window.location.href,
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
-      }
-      await navigator.clipboard.writeText(shareData.url);
-      setStatusMessage("마이페이지 주소를 복사했어요.");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setStatusMessage("주소를 복사하지 못했어요.");
-    }
-
-    window.setTimeout(() => setStatusMessage(""), 2500);
-  }
 
   function showStatus(message: string) {
     setStatusMessage(message);
@@ -111,30 +68,15 @@ export function MyPage() {
     setDialogOpen(open);
   }
 
+  if (!profile) return null;
+
   const initial = profile.displayName.trim().charAt(0) || "M";
   const hasVisibleLinks = visibleBlocks.some((block) => block.type === "link");
   const isInitialLoading = isLoadingLinks && blocks.length === 0;
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border/70 bg-background/88 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-6">
-          <a href="/mypage" className="flex items-center gap-2 font-medium tracking-tight" aria-label="마이페이지 홈">
-            <span className="flex size-8 items-center justify-center rounded-[12px] bg-primary text-sm font-medium text-primary-foreground">
-              M
-            </span>
-            <span>mylink</span>
-          </a>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={toggleTheme} aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
-              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-            </Button>
-            <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={shareProfile} aria-label="마이페이지 공유">
-              <Share2 aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-      </header>
+
 
       <main className="mx-auto w-full max-w-[520px] px-6 pb-12 pt-10 sm:pt-14">
         <section className="flex flex-col items-center text-center" aria-labelledby="profile-name">
@@ -149,7 +91,8 @@ export function MyPage() {
           <h1 id="profile-name" className="mt-5 text-[28px] font-medium tracking-[-0.02em] text-foreground">
             {profile.displayName}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">@{profile.username}</p>
+          {profile.username ? <p className="mt-1 text-sm text-muted-foreground">@{profile.username}</p> : null}
+          {profile.email ? <p className="mt-2 break-all text-sm text-muted-foreground">{profile.email}</p> : null}
           <p className="mt-5 max-w-md text-[16px] leading-7 text-foreground/75">{profile.bio}</p>
         </section>
 
@@ -221,6 +164,67 @@ export function MyPage() {
           {statusMessage}
         </div>
       ) : null}
+    </>
+  );
+}
+
+export function MyPage() {
+  const user = useProfileStore((state) => state.user);
+  const sessionId = useProfileStore((state) => state.sessionId);
+  const isAuthLoading = useProfileStore((state) => state.isAuthLoading);
+  const authError = useProfileStore((state) => state.authError);
+  const profileError = useProfileStore((state) => state.profileError);
+  const setUser = useProfileStore((state) => state.setUser);
+  const failAuth = useProfileStore((state) => state.failAuth);
+  const theme = useProfileStore((state) => state.theme);
+  const setTheme = useProfileStore((state) => state.setTheme);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => observeAuth((nextUser) => { void setUser(nextUser); }, failAuth), [setUser, failAuth]);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const dark = resolveTheme(theme) === "dark";
+      document.documentElement.classList.toggle("dark", dark);
+      setIsDark(dark);
+    };
+    applyTheme();
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [theme]);
+
+  return (
+    <>
+      <header className="sticky top-0 z-10 border-b border-border/70 bg-background/88 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-16 w-full max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-medium tracking-tight" aria-label="마이페이지 홈">
+            <span className="flex size-8 items-center justify-center rounded-[12px] bg-primary text-sm text-primary-foreground">M</span>
+            <span className="hidden sm:inline">mylink</span>
+          </Link>
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={() => setTheme(resolveTheme(theme) === "dark" ? "light" : "dark")} aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
+              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            </Button>
+            <AuthControls />
+          </div>
+        </div>
+      </header>
+      {authError || profileError ? <div className="mx-auto w-full max-w-[520px] px-6 pt-4"><p className="text-sm text-destructive" role="alert">{authError || profileError}</p></div> : null}
+      {isAuthLoading ? (
+        <main className="mx-auto flex w-full max-w-[520px] flex-1 items-center justify-center px-6 py-24" aria-busy="true">
+          <span role="status" aria-label="로그인 상태 확인 중"><LoaderCircle className="size-6 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" /></span>
+        </main>
+      ) : user ? <AuthenticatedProfile key={user.uid + ":" + sessionId} /> : (
+        <main className="mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center justify-center px-6 py-20 text-center">
+          <span className="flex size-20 items-center justify-center rounded-[24px] bg-primary/10 text-primary"><LinkIcon className="size-8" aria-hidden="true" /></span>
+          <p className="mt-7 text-sm font-medium text-primary">나만의 링크 공간</p>
+          <h1 className="mt-3 text-[28px] font-medium tracking-tight">나의 모든 링크를 한곳에</h1>
+          <p className="mt-4 max-w-sm text-[15px] leading-7 text-muted-foreground">Google 계정으로 로그인하면 나만의 링크를 추가하고, 수정하고, 삭제할 수 있어요.</p>
+          <GoogleLoginButton className="mt-8 h-12 px-6" />
+          <p className="mt-4 text-xs leading-6 text-muted-foreground">로그인 후 내 계정에 저장된 링크를 확인할 수 있어요.</p>
+          <footer className="pt-16 text-sm font-medium text-muted-foreground">mylink</footer>
+        </main>
+      )}
     </>
   );
 }

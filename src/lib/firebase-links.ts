@@ -1,12 +1,16 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { z } from "zod";
 
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { linkFormSchema, type LinkFormValues } from "@/lib/link-validation";
 import type { LinkBlock } from "@/types/profile";
 
-const linksCollection = collection(db, "users", "anonymous", "links");
-const latestLinksQuery = query(linksCollection, orderBy("createdAt", "desc"));
+function userLinks(uid: string) {
+  if (!uid || uid.includes("/") || auth.currentUser?.uid !== uid) {
+    throw new Error("로그인이 필요합니다.");
+  }
+  return collection(db, "users", uid, "links");
+}
 
 const linkSchema = z.object({
   type: z.literal("link"),
@@ -18,8 +22,8 @@ const linkSchema = z.object({
   sortOrder: z.number().finite(),
 });
 
-export async function fetchLinks(): Promise<LinkBlock[]> {
-  const snapshot = await getDocs(latestLinksQuery);
+export async function fetchLinks(uid: string): Promise<LinkBlock[]> {
+  const snapshot = await getDocs(query(userLinks(uid), orderBy("createdAt", "desc")));
   const links: LinkBlock[] = [];
 
   for (const document of snapshot.docs) {
@@ -31,6 +35,7 @@ export async function fetchLinks(): Promise<LinkBlock[]> {
 }
 
 export async function saveLink(
+  uid: string,
   link: Pick<LinkBlock, "title" | "description" | "url">,
   sortOrder: number,
 ): Promise<void> {
@@ -42,14 +47,14 @@ export async function saveLink(
     sortOrder,
   });
 
-  await addDoc(linksCollection, { ...data, createdAt: serverTimestamp() });
+  await addDoc(userLinks(uid), { ...data, createdAt: serverTimestamp() });
 }
 
-export async function updateLink(id: string, values: LinkFormValues): Promise<void> {
+export async function updateLink(uid: string, id: string, values: LinkFormValues): Promise<void> {
   const data = linkFormSchema.parse(values);
-  await updateDoc(doc(linksCollection, id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(userLinks(uid), id), { ...data, updatedAt: serverTimestamp() });
 }
 
-export async function deleteLink(id: string): Promise<void> {
-  await deleteDoc(doc(linksCollection, id));
+export async function deleteLink(uid: string, id: string): Promise<void> {
+  await deleteDoc(doc(userLinks(uid), id));
 }

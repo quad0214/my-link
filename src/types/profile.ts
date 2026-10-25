@@ -6,6 +6,7 @@ export type Profile = {
   displayName: string;
   bio: string;
   avatarUrl: string | null;
+  email?: string | null;
 };
 
 export type SectionBlock = {

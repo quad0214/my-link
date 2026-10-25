@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
         <FirebaseAnalytics />
+        <Toaster />
       </body>
     </html>
   );
