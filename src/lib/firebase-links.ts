@@ -1,10 +1,11 @@
-import { addDoc, collection, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { z } from "zod";
 
 import { db } from "@/lib/firebase";
 import type { LinkBlock } from "@/types/profile";
 
 const linksCollection = collection(db, "users", "anonymous", "links");
+const latestLinksQuery = query(linksCollection, orderBy("createdAt", "desc"));
 
 const linkSchema = z.object({
   type: z.literal("link"),
@@ -16,28 +17,16 @@ const linkSchema = z.object({
   sortOrder: z.number().finite(),
 });
 
-export function subscribeToLinks(
-  onLinks: (links: LinkBlock[]) => void,
-  onError: (error: Error) => void,
-) {
-  return onSnapshot(
-    linksCollection,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const links: LinkBlock[] = [];
+export async function fetchLinks(): Promise<LinkBlock[]> {
+  const snapshot = await getDocs(latestLinksQuery);
+  const links: LinkBlock[] = [];
 
-      for (const document of snapshot.docs) {
-        // Display new links only after the server confirms the write.
-        if (document.metadata.hasPendingWrites) continue;
+  for (const document of snapshot.docs) {
+    const result = linkSchema.safeParse(document.data());
+    if (result.success) links.push({ ...result.data, id: document.id });
+  }
 
-        const result = linkSchema.safeParse(document.data());
-        if (result.success) links.push({ ...result.data, id: document.id });
-      }
-
-      onLinks(links.sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)));
-    },
-    onError,
-  );
+  return links;
 }
 
 export async function saveLink(

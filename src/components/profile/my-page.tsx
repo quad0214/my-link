@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Globe2,
   Link as LinkIcon,
+  LoaderCircle,
   Moon,
   Play,
   Plus,
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useProfileStore } from "@/stores/profile-store";
 import type { LinkBlock, LinkIcon as LinkIconName, ThemePreference } from "@/types/profile";
@@ -111,10 +113,9 @@ export function MyPage() {
   const theme = useProfileStore((state) => state.theme);
   const addLink = useProfileStore((state) => state.addLink);
   const setTheme = useProfileStore((state) => state.setTheme);
-  const subscribeLinks = useProfileStore((state) => state.subscribeLinks);
+  const loadLinks = useProfileStore((state) => state.loadLinks);
   const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
   const linksError = useProfileStore((state) => state.linksError);
-  const [linksRetryKey, setLinksRetryKey] = useState(0);
   const [isDark, setIsDark] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -136,7 +137,9 @@ export function MyPage() {
     },
   });
 
-  useEffect(() => subscribeLinks(), [subscribeLinks, linksRetryKey]);
+  useEffect(() => {
+    void loadLinks();
+  }, [loadLinks]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -155,7 +158,6 @@ export function MyPage() {
     () =>
       blocks
         .filter((block) => block.visible)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
         .filter((block) => block.type === "section" || isSafeExternalUrl(block.url)),
     [blocks],
   );
@@ -212,6 +214,7 @@ export function MyPage() {
 
   const initial = profile.displayName.trim().charAt(0) || "M";
   const hasVisibleLinks = visibleBlocks.some((block) => block.type === "link");
+  const isInitialLoading = isLoadingLinks && blocks.length === 0;
 
   return (
     <>
@@ -314,19 +317,40 @@ export function MyPage() {
                   </fieldset>
                   {errors.root ? <p className="text-sm text-destructive" role="alert">{errors.root.message}</p> : null}
                   <DialogFooter className="mx-0 mb-0 rounded-[18px] border-0 bg-muted/60 p-3">
-                    <Button type="submit" disabled={isSubmitting} className="h-10 rounded-[14px] px-5">{isSubmitting ? "저장 중…" : "추가하기"}</Button>
+                    <Button type="submit" disabled={isSubmitting} className="h-10 rounded-[14px] px-5">
+                      {isSubmitting ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+                      <span role="status">{isSubmitting ? (isLoadingLinks ? "목록 갱신 중…" : "저장 중…") : "추가하기"}</span>
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>
           </div>
 
-          <div className="space-y-3">
-            {isLoadingLinks ? <p className="py-6 text-center text-sm text-muted-foreground" role="status">링크를 불러오는 중이에요.</p> : null}
+          {isLoadingLinks ? (
+            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              <span>{isInitialLoading ? "링크를 불러오는 중이에요." : "링크 목록을 갱신하고 있어요."}</span>
+            </div>
+          ) : null}
+          <div className="space-y-3" aria-busy={isLoadingLinks}>
+            {isInitialLoading ? (
+              <div className="space-y-3" aria-hidden="true">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-border/80 bg-card px-3 py-3">
+                    <Skeleton className="size-12 shrink-0 rounded-[14px] motion-reduce:animate-none" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-2/5 motion-reduce:animate-none" />
+                      <Skeleton className="h-3 w-3/4 motion-reduce:animate-none" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {linksError ? (
               <div className="rounded-[20px] bg-muted px-6 py-6 text-center">
                 <p className="text-sm text-destructive" role="alert">{linksError}</p>
-                <Button variant="outline" className="mt-3" onClick={() => setLinksRetryKey((key) => key + 1)}>다시 시도</Button>
+                <Button variant="outline" className="mt-3" onClick={() => void loadLinks()}>다시 시도</Button>
               </div>
             ) : null}
             {visibleBlocks.map((block) =>

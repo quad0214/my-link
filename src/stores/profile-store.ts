@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import { saveLink, subscribeToLinks } from "@/lib/firebase-links";
+import { fetchLinks, saveLink } from "@/lib/firebase-links";
 import mockResponse from "@/mocks/profile-links.json";
 import type {
   ContentBlock,
@@ -20,7 +20,7 @@ type ProfileState = {
   theme: ThemePreference;
   isLoadingLinks: boolean;
   linksError: string | null;
-  subscribeLinks: () => () => void;
+  loadLinks: () => Promise<void>;
   addLink: (link: Pick<LinkBlock, "title" | "description" | "url">) => Promise<void>;
   setTheme: (theme: ThemePreference) => void;
 };
@@ -31,12 +31,14 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
   theme: "system",
   isLoadingLinks: true,
   linksError: null,
-  subscribeLinks: () => {
+  loadLinks: async () => {
     set({ isLoadingLinks: true, linksError: null });
-    return subscribeToLinks(
-      (blocks) => set({ blocks, isLoadingLinks: false, linksError: null }),
-      () => set({ isLoadingLinks: false, linksError: "링크를 불러오지 못했어요. 다시 시도해 주세요." }),
-    );
+    try {
+      const blocks = await fetchLinks();
+      set({ blocks, isLoadingLinks: false, linksError: null });
+    } catch {
+      set({ isLoadingLinks: false, linksError: "링크를 불러오지 못했어요. 다시 시도해 주세요." });
+    }
   },
   addLink: async (link) => {
     const sortOrder = get().blocks.reduce(
@@ -44,6 +46,7 @@ export const useProfileStore = create<ProfileState>()((set, get) => ({
       -1,
     ) + 1;
     await saveLink(link, sortOrder);
+    await get().loadLinks();
   },
   setTheme: (theme) => set({ theme }),
 }));
