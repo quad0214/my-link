@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
 import type { Analytics } from "firebase/analytics";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,6 +24,8 @@ for (const key of ["apiKey", "projectId", "appId"] as const) {
 export const app = getApps().some((app) => app.name === "[DEFAULT]")
   ? getApp()
   : initializeApp(firebaseConfig);
+
+export const db = getFirestore(app);
 
 export async function getFirebaseAnalytics(): Promise<Analytics | null> {
   if (typeof window === "undefined" || !firebaseConfig.measurementId) {

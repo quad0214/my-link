@@ -111,6 +111,10 @@ export function MyPage() {
   const theme = useProfileStore((state) => state.theme);
   const addLink = useProfileStore((state) => state.addLink);
   const setTheme = useProfileStore((state) => state.setTheme);
+  const subscribeLinks = useProfileStore((state) => state.subscribeLinks);
+  const isLoadingLinks = useProfileStore((state) => state.isLoadingLinks);
+  const linksError = useProfileStore((state) => state.linksError);
+  const [linksRetryKey, setLinksRetryKey] = useState(0);
   const [isDark, setIsDark] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -118,7 +122,9 @@ export function MyPage() {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting },
   } = useForm<LinkFormValues>({
     resolver: zodResolver(linkFormSchema),
     mode: "onSubmit",
@@ -129,6 +135,8 @@ export function MyPage() {
       description: "",
     },
   });
+
+  useEffect(() => subscribeLinks(), [subscribeLinks, linksRetryKey]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -178,20 +186,26 @@ export function MyPage() {
     window.setTimeout(() => setStatusMessage(""), 2500);
   }
 
-  function handleAddLink(values: LinkFormValues) {
+  async function handleAddLink(values: LinkFormValues) {
     const title = values.title.trim();
-    addLink({
-      title,
-      url: values.url.trim(),
-      description: values.description.trim(),
-    });
-    reset();
-    setDialogOpen(false);
-    setStatusMessage(`${title} 링크를 추가했어요.`);
-    window.setTimeout(() => setStatusMessage(""), 2500);
+    clearErrors("root");
+    try {
+      await addLink({
+        title,
+        url: values.url.trim(),
+        description: values.description.trim(),
+      });
+      reset();
+      setDialogOpen(false);
+      setStatusMessage(`${title} 링크를 추가했어요.`);
+      window.setTimeout(() => setStatusMessage(""), 2500);
+    } catch {
+      setError("root", { message: "링크를 저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요." });
+    }
   }
 
   function handleDialogOpenChange(open: boolean) {
+    if (isSubmitting) return;
     setDialogOpen(open);
     if (!open) reset();
   }
@@ -241,10 +255,10 @@ export function MyPage() {
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
               <h2 id="link-list-title" className="text-lg font-medium tracking-[-0.01em]">내 링크</h2>
-              <p className="mt-1 text-sm text-muted-foreground">추가한 링크는 새로고침 전까지 유지됩니다.</p>
+              <p className="mt-1 text-sm text-muted-foreground">추가한 링크를 저장하고 언제든 확인하세요.</p>
             </div>
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" />}>
+              <DialogTrigger render={<Button className="h-10 shrink-0 rounded-[16px] px-4" disabled={isLoadingLinks || Boolean(linksError)} />}>
                 <Plus aria-hidden="true" />
                 링크 추가
               </DialogTrigger>
@@ -253,51 +267,54 @@ export function MyPage() {
                   <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
                   <DialogDescription>방문자에게 보여줄 외부 링크 정보를 입력해 주세요.</DialogDescription>
                 </DialogHeader>
-                <form className="space-y-5" onSubmit={handleSubmit(handleAddLink)} noValidate>
-                  <div className="space-y-2">
-                    <Label htmlFor="link-title">제목</Label>
-                    <Input
-                      id="link-title"
-                      autoComplete="off"
-                      placeholder="예: 블로그"
-                      className="h-11 rounded-[14px] px-3"
-                      aria-invalid={Boolean(errors.title)}
-                      aria-describedby={errors.title ? "link-title-error" : undefined}
-                      {...register("title")}
-                    />
-                    {errors.title ? <p id="link-title-error" className="text-xs leading-5 text-destructive" role="alert">{errors.title.message}</p> : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="link-url">URL</Label>
-                    <Input
-                      id="link-url"
-                      type="url"
-                      inputMode="url"
-                      autoComplete="url"
-                      placeholder="https://example.com"
-                      className="h-11 rounded-[14px] px-3"
-                      aria-invalid={Boolean(errors.url)}
-                      aria-describedby={errors.url ? "link-url-error" : "link-url-hint"}
-                      {...register("url")}
-                    />
-                    <p id="link-url-hint" className="text-xs leading-5 text-muted-foreground">http:// 또는 https://로 시작하는 주소를 입력하세요.</p>
-                    {errors.url ? <p id="link-url-error" className="text-xs leading-5 text-destructive" role="alert">{errors.url.message}</p> : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="link-description">설명 <span className="font-normal text-muted-foreground">(선택)</span></Label>
-                    <Input
-                      id="link-description"
-                      autoComplete="off"
-                      placeholder="링크를 짧게 소개해 주세요."
-                      className="h-11 rounded-[14px] px-3"
-                      aria-invalid={Boolean(errors.description)}
-                      aria-describedby={errors.description ? "link-description-error" : undefined}
-                      {...register("description")}
-                    />
-                    {errors.description ? <p id="link-description-error" className="text-xs leading-5 text-destructive" role="alert">{errors.description.message}</p> : null}
-                  </div>
+                <form className="space-y-5" onSubmit={handleSubmit(handleAddLink)} aria-busy={isSubmitting} noValidate>
+                  <fieldset disabled={isSubmitting} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="link-title">제목</Label>
+                      <Input
+                        id="link-title"
+                        autoComplete="off"
+                        placeholder="예: 블로그"
+                        className="h-11 rounded-[14px] px-3"
+                        aria-invalid={Boolean(errors.title)}
+                        aria-describedby={errors.title ? "link-title-error" : undefined}
+                        {...register("title")}
+                      />
+                      {errors.title ? <p id="link-title-error" className="text-xs leading-5 text-destructive" role="alert">{errors.title.message}</p> : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-url">URL</Label>
+                      <Input
+                        id="link-url"
+                        type="url"
+                        inputMode="url"
+                        autoComplete="url"
+                        placeholder="https://example.com"
+                        className="h-11 rounded-[14px] px-3"
+                        aria-invalid={Boolean(errors.url)}
+                        aria-describedby={errors.url ? "link-url-error" : "link-url-hint"}
+                        {...register("url")}
+                      />
+                      <p id="link-url-hint" className="text-xs leading-5 text-muted-foreground">http:// 또는 https://로 시작하는 주소를 입력하세요.</p>
+                      {errors.url ? <p id="link-url-error" className="text-xs leading-5 text-destructive" role="alert">{errors.url.message}</p> : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-description">설명 <span className="font-normal text-muted-foreground">(선택)</span></Label>
+                      <Input
+                        id="link-description"
+                        autoComplete="off"
+                        placeholder="링크를 짧게 소개해 주세요."
+                        className="h-11 rounded-[14px] px-3"
+                        aria-invalid={Boolean(errors.description)}
+                        aria-describedby={errors.description ? "link-description-error" : undefined}
+                        {...register("description")}
+                      />
+                      {errors.description ? <p id="link-description-error" className="text-xs leading-5 text-destructive" role="alert">{errors.description.message}</p> : null}
+                    </div>
+                  </fieldset>
+                  {errors.root ? <p className="text-sm text-destructive" role="alert">{errors.root.message}</p> : null}
                   <DialogFooter className="mx-0 mb-0 rounded-[18px] border-0 bg-muted/60 p-3">
-                    <Button type="submit" className="h-10 rounded-[14px] px-5">추가하기</Button>
+                    <Button type="submit" disabled={isSubmitting} className="h-10 rounded-[14px] px-5">{isSubmitting ? "저장 중…" : "추가하기"}</Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -305,6 +322,13 @@ export function MyPage() {
           </div>
 
           <div className="space-y-3">
+            {isLoadingLinks ? <p className="py-6 text-center text-sm text-muted-foreground" role="status">링크를 불러오는 중이에요.</p> : null}
+            {linksError ? (
+              <div className="rounded-[20px] bg-muted px-6 py-6 text-center">
+                <p className="text-sm text-destructive" role="alert">{linksError}</p>
+                <Button variant="outline" className="mt-3" onClick={() => setLinksRetryKey((key) => key + 1)}>다시 시도</Button>
+              </div>
+            ) : null}
             {visibleBlocks.map((block) =>
               block.type === "section" ? (
                 <h3 key={block.id} className="px-1 pb-1 pt-5 text-[14px] font-medium text-muted-foreground first:pt-0">
@@ -315,7 +339,7 @@ export function MyPage() {
               ),
             )}
 
-            {!hasVisibleLinks ? (
+            {!isLoadingLinks && !linksError && !hasVisibleLinks ? (
               <div className="rounded-[20px] bg-muted px-6 py-10 text-center text-sm text-muted-foreground">
                 아직 등록된 링크가 없어요.
               </div>

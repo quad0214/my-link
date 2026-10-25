@@ -26,6 +26,26 @@ Firebase data must be controlled using Firebase Security Rules.
 References: [Firebase web setup](https://firebase.google.com/docs/web/setup),
 [Analytics browser support](https://firebase.google.com/docs/reference/js/analytics#issupported).
 
+### Firestore links
+
+Links are stored as documents at `users/anonymous/links/{linkId}`. All visitors
+currently share the fixed `anonymous` document; this is not a Firebase Auth UID.
+Profile details still come from the mock profile, while the link list comes only
+from Firestore (mock links are not seeded).
+
+Enable the default Cloud Firestore database in the Firebase console and configure
+Security Rules to permit the intended reads and creates at that path. This
+repository does not deploy rules or change the project's access permissions.
+
+Each link stores `type`, `title`, `description`, `url`, `icon`, `visible`,
+`sortOrder`, and a server-generated `createdAt`. The document ID is used as the
+link ID. A realtime listener restores the list after refresh and updates it when
+server-confirmed documents change. Failed writes keep the form open for retry;
+read failures show a retry button.
+
+References: [Add Firestore data](https://firebase.google.com/docs/firestore/manage-data/add-data),
+[Listen for updates](https://firebase.google.com/docs/firestore/query-data/listen).
+
 First, run the development server:
 
 ```bash
