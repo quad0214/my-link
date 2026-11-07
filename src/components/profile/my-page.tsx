@@ -164,9 +164,9 @@ export function MyPage() {
 
   return (
     <>
-      <SiteHeader landing={!user} />
+      <SiteHeader landing={!isAuthLoading && !user} />
       {authError || profileError ? <div className="mx-auto w-full max-w-[520px] px-6 pt-4"><p className="text-sm text-destructive" role="alert">{authError || profileError}</p></div> : null}
-      {isAuthLoading && user ? (
+      {isAuthLoading ? (
         <main className="mx-auto flex w-full max-w-[520px] flex-1 items-center justify-center px-6 py-24" aria-busy="true">
           <span role="status" aria-label="로그인 상태 확인 중"><LoaderCircle className="size-6 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" /></span>
         </main>
