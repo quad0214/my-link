@@ -1,16 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   LoaderCircle,
-  Moon,
   Plus,
   Link as LinkIcon,
-  Sun,
 } from "lucide-react";
 
-import { AuthControls, GoogleLoginButton, MyPublicPageLink } from "@/components/profile/auth-controls";
+import { GoogleLoginButton } from "@/components/profile/auth-controls";
+import { SiteHeader } from "@/components/profile/site-header";
 import { useAccountBusy, useCurrentProfile, useLinks, useLinkWrite } from "@/hooks/use-account-data";
 import { observeAuth } from "@/lib/firebase-auth";
 import { ProfileEditor } from "@/components/profile/profile-editor";
@@ -29,12 +27,6 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfileStore } from "@/stores/profile-store";
-import type { ThemePreference } from "@/types/profile";
-
-function resolveTheme(theme: ThemePreference) {
-  if (theme !== "system") return theme;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
 
 function AuthenticatedProfile() {
   const { profile } = useCurrentProfile();
@@ -168,40 +160,12 @@ export function MyPage() {
   const profileError = profileQuery.isError ? "프로필을 불러오지 못했어요. 새로고침해 주세요." : null;
   const setUser = useProfileStore((state) => state.setUser);
   const failAuth = useProfileStore((state) => state.failAuth);
-  const theme = useProfileStore((state) => state.theme);
-  const setTheme = useProfileStore((state) => state.setTheme);
-  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => observeAuth((nextUser) => { void setUser(nextUser); }, failAuth), [setUser, failAuth]);
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = () => {
-      const dark = resolveTheme(theme) === "dark";
-      document.documentElement.classList.toggle("dark", dark);
-      setIsDark(dark);
-    };
-    applyTheme();
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [theme]);
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-border/70 bg-background/88 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-16 w-full max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2 font-medium tracking-tight" aria-label="마이페이지 홈">
-            <span className="flex size-8 items-center justify-center rounded-[12px] bg-primary text-sm text-primary-foreground">M</span>
-            <span className="hidden sm:inline">mylink</span>
-          </Link>
-          <div className="flex min-w-0 items-center justify-end gap-2">
-            <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={() => setTheme(resolveTheme(theme) === "dark" ? "light" : "dark")} aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
-              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-            </Button>
-            <MyPublicPageLink />
-            <AuthControls />
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
       {authError || profileError ? <div className="mx-auto w-full max-w-[520px] px-6 pt-4"><p className="text-sm text-destructive" role="alert">{authError || profileError}</p></div> : null}
       {isAuthLoading ? (
         <main className="mx-auto flex w-full max-w-[520px] flex-1 items-center justify-center px-6 py-24" aria-busy="true">

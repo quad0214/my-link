@@ -77,8 +77,8 @@ export function AuthControls() {
   );
 }
 
-export function MyPublicPageLink() {
+export function MyPublicPageLink({ compact = false }: { compact?: boolean }) {
   const { profile } = useCurrentProfile();
   if (!profile) return null;
-  return <Link href={profilePath(profile.displayname)} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[14px] border border-border px-2 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 sm:px-3 sm:text-sm" aria-label="내 페이지로 가기" title="내 페이지로 가기"><ExternalLink className="size-4" aria-hidden="true" /><span>내 페이지<span className="hidden sm:inline">로 가기</span></span></Link>;
+  return <Link href={profilePath(profile.displayname)} target="_blank" rel="noopener noreferrer" className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[14px] border border-border text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 sm:px-3 sm:text-sm ${compact ? "w-10 sm:w-auto" : "px-2"}`} aria-label="내 페이지로 가기" title="내 페이지로 가기"><ExternalLink className="size-4" aria-hidden="true" /><span className={compact ? "hidden sm:inline" : undefined}>내 페이지<span className="hidden sm:inline">로 가기</span></span></Link>;
 }
