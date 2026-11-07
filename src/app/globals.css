@@ -82,6 +82,7 @@
 
   html {
     @apply bg-background font-sans;
+    scroll-behavior: smooth;
   }
 
   body {

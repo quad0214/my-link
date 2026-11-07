@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { MyPage } from "@/components/profile/my-page";
 
 export const metadata: Metadata = {
-  title: `내 링크 관리 | MyLink`,
-  description: "로그인하고 내 링크를 추가하고 관리하는 마이페이지입니다.",
+  title: "MyLink — 나만의 링크 페이지를 30분 만에",
+  description: "프로필을 채우고 SNS, 포트폴리오, 블로그를 모아보세요. 코딩 없이 30분 만에 나만의 링크 페이지를 만들고 공유하세요.",
 };
 
 export default function Home() {

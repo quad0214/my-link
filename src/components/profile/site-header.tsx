@@ -13,7 +13,7 @@ function resolveTheme(theme: ThemePreference) {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function SiteHeader() {
+export function SiteHeader({ landing = false }: { landing?: boolean }) {
   const theme = useProfileStore((state) => state.theme);
   const setTheme = useProfileStore((state) => state.setTheme);
   const [isDark, setIsDark] = useState(false);
@@ -32,12 +32,13 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-border/70 bg-background/88 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-16 w-full max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className={`mx-auto flex min-h-16 w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 ${landing ? "max-w-5xl sm:px-8" : "max-w-3xl"}`}>
         <Link href="/" className="flex shrink-0 items-center gap-2 rounded-lg font-medium tracking-tight focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40" aria-label="mylink 홈">
           <span className="flex size-8 items-center justify-center rounded-[12px] bg-primary text-sm text-primary-foreground">M</span>
           <span className="text-sm sm:text-base">mylink</span>
         </Link>
         <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+          {landing ? <nav aria-label="랜딩 페이지 메뉴" className="mr-4 hidden items-center gap-6 text-sm text-muted-foreground md:flex"><a href="#features" className="hover:text-foreground">기능 소개</a><a href="#preview" className="hover:text-foreground">미리보기</a></nav> : null}
           <Button variant="ghost" size="icon-lg" className="rounded-[18px]" onClick={() => setTheme(resolveTheme(theme) === "dark" ? "light" : "dark")} aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
             {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
           </Button>

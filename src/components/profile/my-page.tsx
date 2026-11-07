@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LoaderCircle,
   Plus,
-  Link as LinkIcon,
 } from "lucide-react";
 
-import { GoogleLoginButton } from "@/components/profile/auth-controls";
+import { LandingPage } from "@/components/profile/landing-page";
 import { SiteHeader } from "@/components/profile/site-header";
 import { useAccountBusy, useCurrentProfile, useLinks, useLinkWrite } from "@/hooks/use-account-data";
 import { observeAuth } from "@/lib/firebase-auth";
@@ -165,23 +164,13 @@ export function MyPage() {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader landing={!user} />
       {authError || profileError ? <div className="mx-auto w-full max-w-[520px] px-6 pt-4"><p className="text-sm text-destructive" role="alert">{authError || profileError}</p></div> : null}
-      {isAuthLoading ? (
+      {isAuthLoading && user ? (
         <main className="mx-auto flex w-full max-w-[520px] flex-1 items-center justify-center px-6 py-24" aria-busy="true">
           <span role="status" aria-label="로그인 상태 확인 중"><LoaderCircle className="size-6 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" /></span>
         </main>
-      ) : user ? <AuthenticatedProfile key={user.uid + ":" + sessionId} /> : (
-        <main className="mx-auto flex w-full max-w-[520px] flex-1 flex-col items-center justify-center px-6 py-20 text-center">
-          <span className="flex size-20 items-center justify-center rounded-[24px] bg-primary/10 text-primary"><LinkIcon className="size-8" aria-hidden="true" /></span>
-          <p className="mt-7 text-sm font-medium text-primary">나만의 링크 공간</p>
-          <h1 className="mt-3 text-[28px] font-medium tracking-tight">나의 모든 링크를 한곳에</h1>
-          <p className="mt-4 max-w-sm text-[15px] leading-7 text-muted-foreground">Google 계정으로 로그인하면 나만의 링크를 추가하고, 수정하고, 삭제할 수 있어요.</p>
-          <GoogleLoginButton className="mt-8 h-12 px-6" />
-          <p className="mt-4 text-xs leading-6 text-muted-foreground">로그인 후 내 계정에 저장된 링크를 확인할 수 있어요.</p>
-          <footer className="pt-16 text-sm font-medium text-muted-foreground">mylink</footer>
-        </main>
-      )}
+      ) : user ? <AuthenticatedProfile key={user.uid + ":" + sessionId} /> : <LandingPage />}
     </>
   );
 }
