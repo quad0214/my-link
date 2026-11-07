@@ -32,8 +32,27 @@ untouched; they can be removed separately if desired.
 
 The public page queries `users` by `displayname`, then reads that UID's links.
 Visible links are displayed newest first; unsafe URLs are filtered out. Missing,
-invalid or ambiguous identifiers return 404. No profile-specific metadata is added.
+invalid or ambiguous identifiers return 404. Profile titles and descriptions are
+also used in Open Graph and Twitter metadata.
 Header navigation and profile URL copying use the current identifier.
+
+## Social sharing images
+
+File-based `opengraph-image.tsx` and `twitter-image.tsx` at the app root provide
+the shared 1200 × 630 PNG for general pages. The files in `[displayname]` override
+them with the user's name, handle, bio, avatar and up to three visible links.
+Profile images are rendered per request, so profile edits appear on the next
+image request; social platforms may keep their own cached previews. Invalid or
+missing profiles return 404, and Firestore failures remain server errors.
+
+Pretendard SemiBold and its OFL license are bundled in `src/assets/fonts` for
+offline Korean text rendering. Google sign-in avatars are embedded when
+available; unavailable or unsupported avatars fall back to the name's initial.
+
+Set `NEXT_PUBLIC_SITE_URL` to the deployed public origin before building
+(for example `https://your-domain.com`). Without it, Vercel uses
+`VERCEL_PROJECT_PRODUCTION_URL`; local development falls back to
+`http://localhost:3000`.
 
 Identifier availability is queried only during initial assignment. Once assigned,
 `displayname` is read-only in the UI, stripped from profile-update payloads, and

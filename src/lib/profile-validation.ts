@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const reserved = new Set(["mypage", "stats", "u", "api", "_next", "favicon.ico", "robots.txt", "sitemap.xml"]);
+const reserved = new Set(["mypage", "stats", "u", "api", "_next", "favicon.ico", "robots.txt", "sitemap.xml", "opengraph-image", "twitter-image"]);
 export const displaynameSchema = z.string().trim().toLowerCase().min(1, "아이디를 입력해 주세요.")
   .max(40, "아이디는 40자 이하로 입력해 주세요.")
   .regex(/^[a-z0-9][a-z0-9._-]*$/, "아이디는 영문 소문자·숫자로 시작하고 점, 밑줄, 하이픈을 사용할 수 있어요.")

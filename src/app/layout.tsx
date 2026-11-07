@@ -3,16 +3,20 @@ import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
+import { siteDescription, siteTitle, siteUrl } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("http://localhost:3000"),
-  title: "MyLink — 나의 모든 링크를 한곳에",
-  description: "프로필과 다양한 채널을 하나의 링크로 공유하는 마이링크입니다.",
+  metadataBase: siteUrl,
+  title: siteTitle,
+  description: siteDescription,
   openGraph: {
-    title: "MyLink — 나의 모든 링크를 한곳에",
-    description: "프로필과 다양한 채널을 하나의 링크로 공유하는 마이링크입니다.",
-    images: ["/images/banner.svg"],
+    title: siteTitle,
+    description: siteDescription,
+    siteName: "MyLink",
+    locale: "ko_KR",
+    type: "website",
   },
+  twitter: { card: "summary_large_image", title: siteTitle, description: siteDescription },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

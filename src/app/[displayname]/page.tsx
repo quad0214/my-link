@@ -1,18 +1,31 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { SiteFavicon } from "@/components/profile/site-favicon";
 import { TrackedLink } from "@/components/profile/tracked-link";
-import { fetchPublicProfile } from "@/lib/firebase-public-profile";
-import { createQueryClient } from "@/lib/query-client";
+import { getPublicProfile } from "@/lib/public-profile";
+import { profilePath } from "@/lib/profile-validation";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ displayname: string }> }): Promise<Metadata> {
+  const { displayname } = await params;
+  const data = await getPublicProfile(displayname);
+  if (!data) notFound();
+  const title = `${data.profile.username} (@${data.profile.displayname}) | MyLink`;
+  const description = data.profile.bio || `${data.profile.username}님의 모든 링크를 한곳에서 만나보세요.`;
+  return {
+    title, description,
+    openGraph: { title, description, siteName: "MyLink", locale: "ko_KR", type: "profile", url: profilePath(data.profile.displayname) },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
+
 export default async function PublicProfilePage({ params }: { params: Promise<{ displayname: string }> }) {
   const { displayname } = await params;
-  const client = createQueryClient();
-  const data = await client.fetchQuery({ queryKey: ["public-profile", displayname], queryFn: () => fetchPublicProfile(displayname) });
+  const data = await getPublicProfile(displayname);
   if (!data) notFound();
   const { profile, links } = data;
   return (
