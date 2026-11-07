@@ -136,7 +136,7 @@ function AuthenticatedProfile() {
                 <Button variant="outline" className="mt-3" onClick={() => void linksQuery.refetch()}>다시 시도</Button>
               </div>
             ) : null}
-            {visibleBlocks.map((block) => <LinkCard key={block.id} block={block} onSuccess={showStatus} />)}
+            {visibleBlocks.map((block) => <LinkCard key={block.id} block={block} uid={profile.id} onSuccess={showStatus} />)}
 
             {!isLoadingLinks && !linksError && !hasVisibleLinks ? (
               <div className="rounded-[20px] bg-muted px-6 py-10 text-center text-sm text-muted-foreground">

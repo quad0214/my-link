@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, increment, updateDoc, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { z } from "zod";
 
 import { auth, db } from "@/lib/firebase";
@@ -20,6 +20,7 @@ export const linkSchema = z.object({
   icon: z.enum(["instagram", "youtube", "globe", "github"]),
   visible: z.boolean(),
   sortOrder: z.number().finite(),
+  clickCount: z.number().int().nonnegative().default(0),
 });
 
 export async function fetchLinks(uid: string): Promise<LinkBlock[]> {
@@ -57,4 +58,12 @@ export async function updateLink(uid: string, id: string, values: LinkFormValues
 
 export async function deleteLink(uid: string, id: string): Promise<void> {
   await deleteDoc(doc(userLinks(uid), id));
+}
+
+export async function incrementLinkClick(uid: string, id: string): Promise<void> {
+  if (!uid || uid.includes("/") || !id || id.includes("/")) {
+    throw new Error("유효하지 않은 링크입니다.");
+  }
+  // Firestore applies this transform on the server, without reading a stale count.
+  await updateDoc(doc(db, "users", uid, "links", id), { clickCount: increment(1) });
 }

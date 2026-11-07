@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { SiteFavicon } from "@/components/profile/site-favicon";
+import { TrackedLink } from "@/components/profile/tracked-link";
 import { fetchPublicProfile } from "@/lib/firebase-public-profile";
 import { createQueryClient } from "@/lib/query-client";
 
@@ -33,11 +34,11 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         </section>
         <section className="mt-10 space-y-3" aria-label="공개 링크">
           {links.map((link) => (
-            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-border/80 bg-card px-3 py-3 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40">
+            <TrackedLink key={link.id} uid={profile.id} linkId={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-border/80 bg-card px-3 py-3 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary"><SiteFavicon url={link.url} /></span>
               <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{link.title}</span><span className="mt-1 block truncate text-[13px] text-muted-foreground">{link.description || link.url}</span></span>
               <ExternalLink className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            </a>
+            </TrackedLink>
           ))}
           {links.length === 0 ? <p className="rounded-[20px] bg-muted px-6 py-10 text-center text-sm text-muted-foreground">아직 공개된 링크가 없어요.</p> : null}
         </section>

@@ -26,6 +26,7 @@ export type LinkBlock = {
   description: string;
   url: string;
   icon: LinkIcon;
+  clickCount: number;
   visible: boolean;
   sortOrder: number;
 };

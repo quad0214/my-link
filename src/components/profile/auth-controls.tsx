@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { profilePath } from "@/lib/profile-validation";
 import { Menu } from "@base-ui/react/menu";
-import { ChevronDown, Copy, ExternalLink, LoaderCircle, LogOut } from "lucide-react";
+import { ChartNoAxesCombined, ChevronDown, Copy, ExternalLink, LoaderCircle, LogOut } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,9 @@ export function AuthControls() {
       <Menu.Portal>
         <Menu.Positioner sideOffset={8} align="end" className="z-50">
           <Menu.Popup className="w-60 max-w-[calc(100vw-2rem)] rounded-[18px] border border-border bg-popover p-2 text-popover-foreground shadow-lg outline-none">
+            <Menu.Item className={menuItemClass} render={<Link href="/stats" />}>
+              <ChartNoAxesCombined className="size-4" aria-hidden="true" />통계
+            </Menu.Item>
             <Menu.Item className={menuItemClass} disabled={isCopying || isAuthBusy} closeOnClick={false} onClick={() => void copyProfileUrl()}>
               {isCopying ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}내 페이지 링크 복사
             </Menu.Item>

@@ -33,7 +33,11 @@ function fixture() {
       assert.equal(segments.join("/"), "users/" + auth.currentUser.uid + "/links");
       return segments.join("/");
     },
-    doc: (collection, id) => {
+    doc: (collection, id, ...segments) => {
+      if (segments.length) {
+        state.lastPath = [id, ...segments].join("/");
+        return segments.at(-1);
+      }
       state.lastPath = collection + "/" + id;
       return id;
     },
@@ -54,6 +58,7 @@ function fixture() {
         .map(([id, data]) => ({ id, data: () => data })) };
     },
     serverTimestamp: () => 200,
+    increment: (amount) => ({ incrementBy: amount }),
     addDoc: async (_collection, data) => {
       state.writes++;
       state.writeStarted?.();
@@ -67,7 +72,11 @@ function fixture() {
       if (state.writeGate) await state.writeGate;
       if (state.failWrite) throw new Error("write-denied");
       if (!documents.has(id)) throw new Error("not-found");
-      documents.set(id, { ...documents.get(id), ...data });
+      const resolved = { ...data };
+      if (resolved.clickCount?.incrementBy) {
+        resolved.clickCount = (documents.get(id).clickCount ?? 0) + resolved.clickCount.incrementBy;
+      }
+      documents.set(id, { ...documents.get(id), ...resolved });
     },
     deleteDoc: async (id) => {
       state.writes++;
@@ -109,6 +118,31 @@ test("the service refuses to target a different UID", async () => {
   await assert.rejects(service.updateLink("other-user", "existing", values), /로그인/);
   await assert.rejects(service.deleteLink("other-user", "existing"), /로그인/);
   assert.equal(state.reads, 0); assert.equal(state.writes, 0);
+});
+
+test("legacy links default to zero and editing preserves stored clicks", async () => {
+  const { service, documents } = fixture();
+  assert.equal((await service.fetchLinks("test-user"))[0].clickCount, 0);
+  documents.get("existing").clickCount = 42;
+  await service.updateLink("test-user", "existing", { ...values, title: "변경" });
+  assert.equal((await service.fetchLinks("test-user"))[0].clickCount, 42);
+  await service.saveLink("test-user", values, 8);
+  assert.equal(documents.get("added").clickCount, 0);
+});
+
+test("guest clicks send server increments without reading or requiring owner auth", async () => {
+  const { service, documents, state, auth } = fixture();
+  auth.currentUser = null;
+  await Promise.all(Array.from({ length: 20 }, () => service.incrementLinkClick("test-user", "existing")));
+  assert.equal(state.lastPath, "users/test-user/links/existing");
+  assert.equal(state.reads, 0);
+  assert.equal(state.writes, 20);
+  assert.equal(documents.get("existing").clickCount, 20);
+  await assert.rejects(service.incrementLinkClick("test-user", "missing"), /not-found/);
+  for (const [uid, id] of [["", "existing"], ["test-user", ""], ["bad/path", "existing"], ["test-user", "bad/path"]]) {
+    await assert.rejects(service.incrementLinkClick(uid, id), /유효하지/);
+  }
+  assert.equal(state.writes, 21);
 });
 
 function profileFixture(existing = null) {
@@ -173,7 +207,7 @@ test("profile edits change only name and bio, ignoring forged displayname change
 });
 
 test("profile validation rejects reserved/unsafe identifiers", () => {
-  for (const displayname of ["mypage", "api", "u", "bad/route", "bad space", "@owner", ""]) {
+  for (const displayname of ["mypage", "stats", "api", "u", "bad/route", "bad space", "@owner", ""]) {
     assert.equal(profileValidation.profileFormSchema.safeParse({ username: "이름", displayname, bio: "" }).success, false);
   }
 });
@@ -412,7 +446,8 @@ function publicFixture() {
       where: (field, operator, value) => { assert.equal(operator, "=="); return { field, value }; },
       limit: (count) => count,
       query: (collection, filter, count) => ({ collection, filter, count }),
-      getDocs: async ({ collection, filter, count }) => {
+      getDocsFromServer: async ({ collection, filter, count }) => {
+        if (state.failRead) throw new Error("unavailable");
         state.reads.push(collection);
         if (collection === "users") {
           assert.equal(filter.field, "displayname");
@@ -442,6 +477,12 @@ test("invalid, missing or ambiguous public identifiers return not-found", async 
   assert.equal(await api.fetchPublicProfile("missing"), null);
   state.profiles.push({ id: "another", data: { ...state.profiles[0].data } });
   assert.equal(await api.fetchPublicProfile("owner"), null);
+});
+
+test("public profile connection failures propagate instead of returning not-found", async () => {
+  const { state, api } = publicFixture();
+  state.failRead = true;
+  await assert.rejects(api.fetchPublicProfile("owner"), /unavailable/);
 });
 
 

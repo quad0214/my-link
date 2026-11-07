@@ -1,4 +1,4 @@
-import { collection, getDocs, limit, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocsFromServer, limit, query, where, Timestamp } from "firebase/firestore";
 import { z } from "zod";
 import { db } from "@/lib/firebase";
 import { linkSchema } from "@/lib/firebase-links";
@@ -13,14 +13,15 @@ const publicSchema = z.object({
 export async function fetchPublicProfile(handle: string): Promise<{ profile: Profile; links: LinkBlock[] } | null> {
   const parsed = displaynameSchema.safeParse(handle);
   if (!parsed.success) return null;
-  const matches = await getDocs(query(collection(db, "users"), where("displayname", "==", parsed.data), limit(2)));
+  // Never interpret an empty offline cache as a missing public profile (404).
+  const matches = await getDocsFromServer(query(collection(db, "users"), where("displayname", "==", parsed.data), limit(2)));
   // A duplicate identifier is ambiguous: never show an arbitrary user's page.
   if (matches.docs.length !== 1) return null;
   const document = matches.docs[0];
   const uid = document.id;
   const result = publicSchema.safeParse(document.data());
   if (!result.success || result.data.displayname !== parsed.data) return null;
-  const response = await getDocs(query(collection(db, "users", uid, "links"), where("visible", "==", true)));
+  const response = await getDocsFromServer(query(collection(db, "users", uid, "links"), where("visible", "==", true)));
   const links: { block: LinkBlock; createdAt: number }[] = [];
   for (const document of response.docs) {
     const data = document.data();

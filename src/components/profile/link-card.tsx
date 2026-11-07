@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, LoaderCircle, Pencil, Trash2 } from "lucide-react";
+import { ExternalLink, LoaderCircle, MousePointer2, Pencil, Trash2 } from "lucide-react";
 
 import { SiteFavicon } from "@/components/profile/site-favicon";
+import { TrackedLink } from "@/components/profile/tracked-link";
 import { LinkForm } from "@/components/profile/link-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,11 +13,13 @@ import type { LinkFormValues } from "@/lib/link-validation";
 import { useAccountBusy, useLinks, useLinkWrite } from "@/hooks/use-account-data";
 import type { LinkBlock } from "@/types/profile";
 
-function LinkPreview({ block }: { block: LinkBlock }) {
+function LinkPreview({ block, uid }: { block: LinkBlock; uid: string }) {
 
 
   return (
-    <a
+    <TrackedLink
+      uid={uid}
+      linkId={block.id}
       href={block.url}
       target="_blank"
       rel="noopener noreferrer"
@@ -41,11 +44,11 @@ function LinkPreview({ block }: { block: LinkBlock }) {
         className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
         aria-hidden="true"
       />
-    </a>
+    </TrackedLink>
   );
 }
 
-export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (message: string) => void }) {
+export function LinkCard({ block, uid, onSuccess }: { block: LinkBlock; uid: string; onSuccess: (message: string) => void }) {
   const linkWrite = useLinkWrite();
   const { isFetching: isLoadingLinks } = useLinks();
   const isMutatingLinks = useAccountBusy("links");
@@ -89,8 +92,12 @@ export function LinkCard({ block, onSuccess }: { block: LinkBlock; onSuccess: (m
           <h3 className="text-sm font-medium">링크 수정</h3>
           <LinkForm initialValues={{ title: block.title, url: block.url, description: block.description }} onSave={save} submitLabel="변경하기" onCancel={() => setIsEditing(false)} disabled={actionsDisabled} focusOnMount />
         </div>
-      ) : <LinkPreview block={block} />}
+      ) : <LinkPreview block={block} uid={uid} />}
       <div className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-2">
+        <span className="mr-auto inline-flex items-center gap-1.5 px-2 text-sm tabular-nums text-muted-foreground" aria-label={`클릭 수 ${block.clickCount}회`}>
+          <MousePointer2 className="size-4" aria-hidden="true" />
+          <span aria-hidden="true">{block.clickCount.toLocaleString("ko-KR")}</span>
+        </span>
         <Button type="button" variant="ghost" className="h-9 rounded-[12px] px-3" aria-label={block.title + " 링크 수정"} disabled={actionsDisabled || isEditing} onClick={() => setIsEditing(true)}>
           <Pencil aria-hidden="true" />수정
         </Button>
