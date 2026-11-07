@@ -7,6 +7,7 @@ import { SiteFavicon } from "@/components/profile/site-favicon";
 import { TrackedLink } from "@/components/profile/tracked-link";
 import { getPublicProfile } from "@/lib/public-profile";
 import { profilePath } from "@/lib/profile-validation";
+import { createPageMetadata } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,13 @@ export async function generateMetadata({ params }: { params: Promise<{ displayna
   const data = await getPublicProfile(displayname);
   if (!data) notFound();
   const title = `${data.profile.username} (@${data.profile.displayname}) | MyLink`;
-  const description = data.profile.bio || `${data.profile.username}님의 모든 링크를 한곳에서 만나보세요.`;
-  return {
-    title, description,
-    openGraph: { title, description, siteName: "MyLink", locale: "ko_KR", type: "profile", url: profilePath(data.profile.displayname) },
-    twitter: { card: "summary_large_image", title, description },
-  };
+  const description = data.profile.bio.trim() || `${data.profile.username}님의 SNS, 포트폴리오, 블로그 등 공개 링크를 한곳에서 만나보세요.`;
+  return createPageMetadata({
+    title,
+    description,
+    path: profilePath(data.profile.displayname),
+    type: "profile",
+  });
 }
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ displayname: string }> }) {

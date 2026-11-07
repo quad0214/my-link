@@ -36,6 +36,18 @@ invalid or ambiguous identifiers return 404. Profile titles and descriptions are
 also used in Open Graph and Twitter metadata.
 Header navigation and profile URL copying use the current identifier.
 
+## SEO metadata
+
+The home page and public profiles provide page-specific titles, descriptions,
+canonical URLs, Open Graph and Twitter metadata. Profile metadata uses the
+saved name, identifier and bio. The stats page and legacy preview route are
+marked noindex; `/mypage` continues to redirect to `/`.
+
+`/robots.txt` allows crawlers to read page indexing directives and points to
+`/sitemap.xml`. The sitemap lists the home page only; public profiles can be
+discovered through links to their shared URLs. Set `NEXT_PUBLIC_SITE_URL` to
+the production origin so canonical and sitemap URLs use the correct domain.
+
 ## Social sharing images
 
 File-based `opengraph-image.tsx` and `twitter-image.tsx` at the app root provide

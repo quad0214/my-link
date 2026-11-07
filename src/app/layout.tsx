@@ -7,6 +7,7 @@ import { siteDescription, siteTitle, siteUrl } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
+  applicationName: "MyLink",
   title: siteTitle,
   description: siteDescription,
   openGraph: {
